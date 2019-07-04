@@ -90,6 +90,9 @@ xerces.jar=${apache.home}/xerces-1_4_4/xerces.jar
 # http://www.antlr.org/
 antlr.jar = ../../../antlr-2.7.2/antlr.jar
 
+# The JAR file containing the logging package.  This is required if you are
+# going to execute the "test.junit" target.
+log4j.jar=${apache.home}/logging-log4j-1.2.17/dist/lib/log4j-1.2.17.jar
 
 # Properties related to optional tasks
 # ------------------------------------

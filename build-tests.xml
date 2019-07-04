@@ -159,6 +159,7 @@
       <pathelement location="${struts.jar}"/>
       <pathelement location="${antlr.jar}"/>
       <pathelement location="${xerces.jar}"/>
+	  <pathelement location="${log4j.jar}"/>
 
       <!-- cactus lib jars -->
       <path refid="cactus.lib.classpath"/>
@@ -795,11 +796,14 @@
         <!-- Tests for org.apache.struts.action -->
         <test       name="org.apache.struts.action.TestDynaActionForm"/>
         <test       name="org.apache.struts.action.TestDynaActionFormClass"/>
+		<test       name="org.apache.struts.config.TestActionConfig"/>
+		<test       name="org.apache.struts.config.TestActionConfigMatcher"/>
         <test       name="org.apache.struts.config.TestModuleConfig"/>
-        <test       name="org.apache.struts.config.TestActionConfigMatcher"/>
         <test       name="org.apache.struts.tiles.TestTilesPlugin"/>
 
         <!-- Tests for org.apache.struts.validator -->
+		<test       name="org.apache.struts.validator.TestDynaValidatorForm"/>
+        <test       name="org.apache.struts.validator.TestValidatorForm"/>
         <test       name="org.apache.struts.validator.TestValidWhen"/>
 
         <!-- Tests for org.apache.struts.util -->

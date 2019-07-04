@@ -480,6 +480,14 @@ public class RequestUtils {
             } else {
                 parameterValue = request.getParameterValues(name);
             }
+			
+			// 2014/05/13 - CVE-2014-0114 security problem patch.
+            // Author: NTT DATA Corporation
+            if (stripped.startsWith("class.") || stripped.indexOf(".class.") >= 0) {
+                // this log output is only for detection of invalid parameters and not an integral part of the bug fix
+                log.info("ignore parameter: paramName=" + stripped);
+                continue;
+            }
 
             // Populate parameters, except "standard" struts attributes
             // such as 'org.apache.struts.action.CANCEL'
