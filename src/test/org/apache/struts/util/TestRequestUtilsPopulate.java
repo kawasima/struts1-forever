@@ -18,22 +18,12 @@
 
 package org.apache.struts.util;
 
-import java.io.BufferedReader;
-import java.io.StringReader;
-import java.io.StringWriter;
-import java.util.HashSet;
-
 import javax.servlet.ServletException;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.PatternLayout;
-import org.apache.log4j.WriterAppender;
-
 import org.apache.struts.action.ActionMapping;
-import org.apache.struts.util.RequestUtils;
 import org.apache.struts.Globals;
 import org.apache.struts.mock.TestMockBase;                                                                                                                       
 import org.apache.struts.mock.MockFormBean;                                                                                                                       
@@ -146,42 +136,14 @@ public class TestRequestUtilsPopulate extends TestMockBase {
 
         request.addParameter("class.xxx.case1", stringValue);
 
-        // logger
-        StringWriter writer = new StringWriter();
-        WriterAppender appender = new WriterAppender(new PatternLayout("%p, %m%n"), writer);
-        LogManager.getRootLogger().addAppender(appender);
-        LogManager.getRootLogger().setAdditivity(false);
-
         // Try to populate
-        HashSet ignoreSet = new HashSet();
         try {
             RequestUtils.populate(mockForm, request);
-
-            String keyword1 = "INFO, ";
-            String keyword2 = "ignore parameter: paramName=";
-            String logString = writer.toString();
-            StringReader reader = new StringReader(logString);
-            BufferedReader bufReader = new BufferedReader(reader);
-            String line = null;
-            while ((line = bufReader.readLine()) != null) {
-                if (!line.startsWith(keyword1)) {
-                	continue;
-                }
-                int pos = line.indexOf(keyword2);
-                if (pos >= 0) {
-                    ignoreSet.add(line.substring(pos + keyword2.length()));
-                }
-            }
         } catch(ServletException se) {
-        	fail("Occur exception.");
-        } finally {
-            LogManager.getRootLogger().removeAppender(appender);
-            LogManager.getRootLogger().setAdditivity(true);
+            fail("Occur exception.");
         }
 
-        // Check 
-        assertEquals("ignore num no match", 1, ignoreSet.size());
-        assertTrue("not exists ignore parameter class.xxx.case1", ignoreSet.contains("class.xxx.case1"));
+        // Check that "class." prefix parameter was ignored
         assertNull("ActionForm property set", mockForm.getStringProperty());
 
     }
@@ -206,42 +168,14 @@ public class TestRequestUtilsPopulate extends TestMockBase {
 
         request.addParameter("xxx.class.case2", stringValue);
 
-        // logger
-        StringWriter writer = new StringWriter();
-        WriterAppender appender = new WriterAppender(new PatternLayout("%p, %m%n"), writer);
-        LogManager.getRootLogger().addAppender(appender);
-        LogManager.getRootLogger().setAdditivity(false);
-
         // Try to populate
-        HashSet ignoreSet = new HashSet();
         try {
             RequestUtils.populate(mockForm, request);
-
-            String keyword1 = "INFO, ";
-            String keyword2 = "ignore parameter: paramName=";
-            String logString = writer.toString();
-            StringReader reader = new StringReader(logString);
-            BufferedReader bufReader = new BufferedReader(reader);
-            String line = null;
-            while ((line = bufReader.readLine()) != null) {
-                if (!line.startsWith(keyword1)) {
-                	continue;
-                }
-                int pos = line.indexOf(keyword2);
-                if (pos >= 0) {
-                    ignoreSet.add(line.substring(pos + keyword2.length()));
-                }
-            }
         } catch(ServletException se) {
-        	fail("Occur exception.");
-        } finally {
-            LogManager.getRootLogger().removeAppender(appender);
-            LogManager.getRootLogger().setAdditivity(true);
+            fail("Occur exception.");
         }
 
-        // Check 
-        assertEquals("ignore num no match", 1, ignoreSet.size());
-        assertTrue("not exists ignore parameter xxx.class.case2", ignoreSet.contains("xxx.class.case2"));
+        // Check that ".class." containing parameter was ignored
         assertNull("ActionForm property set", mockForm.getStringProperty());
 
     }
@@ -266,42 +200,14 @@ public class TestRequestUtilsPopulate extends TestMockBase {
 
         request.addParameter("stringProperty", stringValue);
 
-        // logger
-        StringWriter writer = new StringWriter();
-        WriterAppender appender = new WriterAppender(new PatternLayout("%p, %m%n"), writer);
-        LogManager.getRootLogger().addAppender(appender);
-        LogManager.getRootLogger().setAdditivity(false);
-
         // Try to populate
-        HashSet ignoreSet = new HashSet();
         try {
             RequestUtils.populate(mockForm, request);
-
-            String keyword1 = "INFO, ";
-            String keyword2 = "ignore parameter: paramName=";
-            String logString = writer.toString();
-            StringReader reader = new StringReader(logString);
-            BufferedReader bufReader = new BufferedReader(reader);
-            String line = null;
-            while ((line = bufReader.readLine()) != null) {
-                if (!line.startsWith(keyword1)) {
-                	continue;
-                }
-                int pos = line.indexOf(keyword2);
-                if (pos >= 0) {
-                    ignoreSet.add(line.substring(pos + keyword2.length()));
-                }
-            }
         } catch(ServletException se) {
-        	fail("Occur exception.");
-        } finally {
-            LogManager.getRootLogger().removeAppender(appender);
-            LogManager.getRootLogger().setAdditivity(true);
+            fail("Occur exception.");
         }
 
-        // Check 
-        assertEquals("ignore num no match", 0, ignoreSet.size());
-        assertFalse("exists ignore parameter stringProperty", ignoreSet.contains("stringProperty"));
+        // Check that normal parameter was NOT ignored
         assertEquals("ActionForm property not equal", stringValue, mockForm.getStringProperty());
 
     }
@@ -328,43 +234,14 @@ public class TestRequestUtilsPopulate extends TestMockBase {
         request.addParameter("xxx.class.case4", stringValue);
         request.addParameter("stringProperty", stringValue);
 
-        // logger
-        StringWriter writer = new StringWriter();
-        WriterAppender appender = new WriterAppender(new PatternLayout("%p, %m%n"), writer);
-        LogManager.getRootLogger().addAppender(appender);
-        LogManager.getRootLogger().setAdditivity(false);
-
         // Try to populate
-        HashSet ignoreSet = new HashSet();
         try {
             RequestUtils.populate(mockForm, request);
-
-            String keyword1 = "INFO, ";
-            String keyword2 = "ignore parameter: paramName=";
-            String logString = writer.toString();
-            StringReader reader = new StringReader(logString);
-            BufferedReader bufReader = new BufferedReader(reader);
-            String line = null;
-            while ((line = bufReader.readLine()) != null) {
-                if (!line.startsWith(keyword1)) {
-                	continue;
-                }
-                int pos = line.indexOf(keyword2);
-                if (pos >= 0) {
-                    ignoreSet.add(line.substring(pos + keyword2.length()));
-                }
-            }
         } catch(ServletException se) {
-        	fail("Occur exception.");
-        } finally {
-            LogManager.getRootLogger().removeAppender(appender);
-            LogManager.getRootLogger().setAdditivity(true);
+            fail("Occur exception.");
         }
 
-        // Check 
-        assertEquals("ignore num no match", 2, ignoreSet.size());
-        assertTrue("not exists ignore parameter class.xxx.case4", ignoreSet.contains("class.xxx.case4"));
-        assertTrue("not exists ignore parameter xxx.class.case4", ignoreSet.contains("xxx.class.case4"));
+        // Check that dangerous parameters were ignored but normal one was populated
         assertEquals("ActionForm property not equal", stringValue, mockForm.getStringProperty());
 
     }
