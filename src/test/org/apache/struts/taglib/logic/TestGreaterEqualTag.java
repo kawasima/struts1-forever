@@ -21,9 +21,9 @@ import javax.servlet.ServletException;
 import javax.servlet.jsp.JspException;
 import javax.servlet.jsp.PageContext;
 import junit.framework.Test;
+import junit.framework.TestCase;
 import junit.framework.TestSuite;
-import org.apache.cactus.JspTestCase;
-import org.apache.cactus.WebRequest;
+import org.apache.struts.mock.*;
 import org.apache.struts.util.LabelValueBean;
 
 /**
@@ -31,13 +31,20 @@ import org.apache.struts.util.LabelValueBean;
  * <code>org.apache.struts.taglib.logic.GreaterEqualTag</code> class.
  *
  */
-public class TestGreaterEqualTag extends JspTestCase {
+public class TestGreaterEqualTag extends TestCase {
 	
     protected final static String COOKIE_KEY = "org.apache.struts.taglib.logic.COOKIE_KEY";
     protected final static String HEADER_KEY = "org.apache.struts.taglib.logic.HEADER_KEY";
     protected final static String PARAMETER_KEY = "org.apache.struts.taglib.logic.PARAMETER_KEY";
     protected final static String GREATER_VAL = "5";
     protected final static String LESSER_VAL = "5";
+
+    protected MockServletContext context;
+    protected MockServletConfig config;
+    protected MockHttpSession session;
+    protected MockHttpServletRequest request;
+    protected MockHttpServletResponse response;
+    protected MockPageContext pageContext;
 
 
     /**
@@ -67,6 +74,15 @@ public class TestGreaterEqualTag extends JspTestCase {
         return new TestSuite(TestGreaterEqualTag.class);
     }
 
+    public void setUp() {
+        context = new MockServletContext();
+        config = new MockServletConfig(context);
+        session = new MockHttpSession(context);
+        request = new MockHttpServletRequest(session);
+        response = new MockHttpServletResponse();
+        pageContext = new MockPageContext(config, request, response);
+    }
+
     //----- Test initApplication() method --------------------------------------
 	
     /**
@@ -79,20 +95,6 @@ public class TestGreaterEqualTag extends JspTestCase {
     */
 
     /**
-     * Create header for testHeaderGreaterEqual method test.
-    */
-    public void beginHeaderGreaterEqual(WebRequest testRequest) {
-       testRequest.addHeader(HEADER_KEY, GREATER_VAL);
-    }
-
-    /**
-     * Create header for testParameterGreaterEqual method test.
-    */
-    public void beginParameterGreaterEqual(WebRequest testRequest) {
-       testRequest.addParameter(PARAMETER_KEY, GREATER_VAL);
-    }
-
-    /**
      * Verify the value stored in a cookie using <code>GreaterEqualTag</code>.
     */
     /* FIXME: Cactus does not send cookies?
@@ -103,15 +105,17 @@ public class TestGreaterEqualTag extends JspTestCase {
         ge.setValue(LESSER_VAL);
 
         assertTrue(
-        	"Cookie Value (" + GREATER_VAL + ") is greater than or equal to value (" + LESSER_VAL + ")", 
+        	"Cookie Value (" + GREATER_VAL + ") is greater than or equal to value (" + LESSER_VAL + ")",
         	ge.condition());
     }
     */
-    
+
     /**
      * Verify the value stored in header using <code>GreaterEqualTag</code>.
     */
     public void testHeaderGreaterEqual() throws ServletException,  JspException {
+        request.addHeader(HEADER_KEY, GREATER_VAL);
+
         GreaterEqualTag ge = new GreaterEqualTag();
         ge.setPageContext(pageContext);
         ge.setHeader(HEADER_KEY);
@@ -126,6 +130,8 @@ public class TestGreaterEqualTag extends JspTestCase {
      * Verify the value stored in parameter using <code>GreaterEqualTag</code>.
     */
     public void testParameterGreaterEqual() throws ServletException,  JspException {
+        request.addParameter(PARAMETER_KEY, GREATER_VAL);
+
         GreaterEqualTag ge = new GreaterEqualTag();
         ge.setPageContext(pageContext);
         ge.setParameter(PARAMETER_KEY);

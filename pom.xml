@@ -204,19 +204,6 @@
       <version>3.8.1</version>
       <scope>test</scope>
     </dependency>
-    <dependency>
-      <groupId>cactus</groupId>
-      <artifactId>cactus</artifactId>
-      <!--<version>12-1.4.1</version>-->
-      <version>13-1.7.2</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>cactus</groupId>
-      <artifactId>cactus-ant</artifactId>
-      <version>1.4.1</version>
-      <scope>test</scope>
-    </dependency>
     <!-- for tld generation -->
     <dependency>
       <groupId>xalan</groupId>
@@ -323,8 +310,10 @@
           <includes>
             <include>org/apache/struts/action/TestDynaActionForm.java</include>
             <include>org/apache/struts/action/TestDynaActionFormClass.java</include>
+            <include>org/apache/struts/action/TestActionServlet.java</include>
             <include>org/apache/struts/config/TestModuleConfig.java</include>
             <include>org/apache/struts/config/TestActionConfigMatcher.java</include>
+            <include>org/apache/struts/taglib/logic/Test*.java</include>
             <include>org/apache/struts/util/Test*.java</include>
           </includes>
         </configuration>
