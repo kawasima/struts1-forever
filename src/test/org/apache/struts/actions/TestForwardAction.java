@@ -50,7 +50,7 @@ public class TestForwardAction extends TestCase {
     // Normal operation
     // ------------------------------------------------------------------
 
-    @SuppressWarnings("deprecation")
+
     public void testForward_ReturnsContextRelativeForward() throws Exception {
         ActionMapping mapping = new ActionMapping();
         mapping.setParameter("/target/page.jsp");
@@ -66,7 +66,7 @@ public class TestForwardAction extends TestCase {
         assertTrue("Forward must be context-relative", forward.getContextRelative());
     }
 
-    @SuppressWarnings("deprecation")
+
     public void testForward_RootPath() throws Exception {
         ActionMapping mapping = new ActionMapping();
         mapping.setParameter("/index.jsp");
@@ -129,7 +129,7 @@ public class TestForwardAction extends TestCase {
      * source of the path ever changes to a request parameter, a fix is required
      * and this test must be rewritten to assert rejection.</p>
      */
-    @SuppressWarnings("deprecation")
+
     public void testForward_DoubleSlashPath_DocumentsNoValidation() throws Exception {
         ActionMapping mapping = new ActionMapping();
         mapping.setParameter("//evil.example.com/phishing");
@@ -148,7 +148,7 @@ public class TestForwardAction extends TestCase {
      * error, not an injection; the server is responsible for blocking it.
      * This test documents current behaviour as a regression baseline.
      */
-    @SuppressWarnings("deprecation")
+
     public void testForward_WebInfPath_DocumentsNoValidation() throws Exception {
         ActionMapping mapping = new ActionMapping();
         mapping.setParameter("/WEB-INF/web.xml");

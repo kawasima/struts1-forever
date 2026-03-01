@@ -208,3 +208,35 @@ Security vulnerabilities are tracked as GitHub Security Advisories in this repos
    ```
 
 5. **Update the Security Advisory** on GitHub to reflect the fix: add the patched version, resolution details, and link to the commit.
+
+## Release Process
+
+Releases follow the naming convention `1.2.9-forever-N` (e.g., `1.2.9-forever-1`, `1.2.9-forever-2`).
+
+### Steps
+
+1. **Update `pom.xml` version** from `1.2.10-SNAPSHOT` to `1.2.9-forever-N` and commit.
+2. **Build the JAR with JDK 8** (`-Dmaven.test.skip=true` to skip test compilation):
+
+   ```bash
+   JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-8.jdk/Contents/Home \
+     mvn clean package -Dmaven.test.skip=true
+   ```
+
+3. **Tag and push**: `git tag 1.2.9-forever-N && git push origin STRUTS_1_2_BRANCH --tags`
+4. **Create GitHub Release** with `gh release create`, attaching `target/struts-1.2.9-forever-N.jar` as an asset.
+5. **Revert `pom.xml`** to `1.2.10-SNAPSHOT` and commit ("Prepare next development iteration").
+
+### Build JDK Requirement
+
+The release JAR **must be built with JDK 8**. The pom.xml has compiler profiles that select `--release` based on the JDK version:
+
+| Build JDK | Effective setting | Class file major version | Minimum runtime |
+| --- | --- | --- | --- |
+| JDK 8 | `source=1.4 target=1.4` | **48** (Java 1.4) | Java 1.4+ |
+| JDK 9–10 | `--release 6` | 50 (Java 6) | Java 6+ |
+| JDK 11+ | `--release 8` | 52 (Java 8) | Java 8+ |
+
+Building with JDK 11+ produces class files that **cannot run on Java 5, 6, or 7**. Since this library targets legacy environments, always use JDK 8 for release builds to ensure maximum compatibility.
+
+**Note**: JDK 8 cannot compile test code that uses annotations (`@Override` etc.), so release builds must use `-Dmaven.test.skip=true`. Tests should be run separately with JDK 11+ before the release.
