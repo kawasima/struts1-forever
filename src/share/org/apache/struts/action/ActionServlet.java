@@ -1061,6 +1061,7 @@ public class ActionServlet extends HttpServlet {
         suppressProperties.add("class");
         suppressProperties.add("multipartRequestHandler");
         suppressProperties.add("resultValueMap");
+        suppressProperties.add("validatorResults");
 
         PropertyUtils.addBeanIntrospector(
                 new SuppressPropertiesBeanIntrospector(suppressProperties));
