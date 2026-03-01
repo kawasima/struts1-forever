@@ -135,28 +135,8 @@ public class TestErrorsTag extends TestCase {
     // ------------------------------------------------------------------
 
     /**
-     * Documents that a non-resource ActionMessage with an XSS payload in its
-     * key is currently written to output without HTML escaping (H-2).
-     *
-     * <p>This test PASSES and documents the current broken state.
-     * It should be removed once the fix is applied.</p>
-     */
-    public void testNonResourceMessage_XssPayload_CurrentlyWrittenRaw() throws Exception {
-        ActionMessages messages = new ActionMessages();
-        messages.add(ActionMessages.GLOBAL_MESSAGE,
-                new ActionMessage("<script>alert('XSS')</script>", false));
-
-        String output = runErrorsTag(messages);
-
-        assertTrue("Currently ErrorsTag writes non-resource message key without escaping (H-2)",
-            output.contains("<script>alert('XSS')</script>"));
-    }
-
-    /**
      * A non-resource ActionMessage key containing an XSS payload must be
      * HTML-escaped in the output (H-2 / CVE-2012-1007).
-     *
-     * <p>Currently FAILS — ErrorsTag does not call ResponseUtils.filter().</p>
      */
     public void testNonResourceMessage_EscapesScriptTag() throws Exception {
         ActionMessages messages = new ActionMessages();
@@ -174,8 +154,6 @@ public class TestErrorsTag extends TestCase {
     /**
      * A non-resource message containing a double-quote must be HTML-escaped
      * to prevent attribute injection (H-2).
-     *
-     * <p>Currently FAILS — ErrorsTag does not escape output.</p>
      */
     public void testNonResourceMessage_EscapesDoubleQuote() throws Exception {
         ActionMessages messages = new ActionMessages();
