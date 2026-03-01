@@ -54,8 +54,22 @@ Available examples:
 | --- | --- |
 | `examples/switch-example/` | Demonstrates the SwitchAction path traversal vulnerability (C-1) |
 | `examples/example/` | Standard Struts mailreader-style example app |
+| `examples/examples/` | Framework features demo (validator, upload, dispatch, exercise modules) |
 | `examples/mailreader/` | Mailreader reference application |
 | `examples/tiles-documentation/` | Tiles framework documentation and demos |
+
+### Servlet 2.2 Constraint in Example Apps
+
+The example `web.xml` files use the **Servlet 2.2 DTD** (`web-app_2_2.dtd`). This is intentional — it mirrors the deployment environments that Struts 1 legacy applications run in and must not be upgraded.
+
+**Consequence for TLD files**: Servlet 2.3+ introduced automatic TLD discovery from JARs (`META-INF/tlds/`). Servlet 2.2 containers have no such mechanism, so every tag library must be declared explicitly in `web.xml` with a `<taglib-location>` pointing to a physical file inside the webapp.
+
+When running under Tomcat 9 (Servlet 5.0), Tomcat honours the `web.xml` `<taglib>` declarations and requires the files to exist on disk — even though Tomcat itself could auto-discover them from the JAR. Therefore:
+
+- **Do not remove `<taglib>` entries from `web.xml`** — they are part of the Servlet 2.2 contract.
+- **Keep `struts-bean.tld`, `struts-html.tld`, `struts-logic.tld`, `struts-nested.tld` in `WEB-INF/`** of each example that declares them. These files are extracted from the struts JAR (`META-INF/tlds/`) and committed alongside the webapp sources.
+- **`validator-rules.xml` must also be in `WEB-INF/`** of any example that uses `ValidatorPlugIn`, because `ValidatorPlugIn` loads it via `ServletContext.getResourceAsStream()` (webapp filesystem only, not classpath).
+- **`.properties` resource files must be on the classpath** (i.e. under `src/main/resources/` or included via a `<resources>` entry in `pom.xml`). The example apps keep them under `src/main/java/` (old Ant layout), so their `pom.xml` files include an explicit `<resource>` block to copy `**/*.properties` from `src/main/java/` into `target/classes/`.
 
 ## Source Layout
 
