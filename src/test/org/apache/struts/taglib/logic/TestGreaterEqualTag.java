@@ -85,18 +85,14 @@ public class TestGreaterEqualTag extends TestCase {
 
     //----- Test initApplication() method --------------------------------------
 	
-    /**
-     * Create cookie for testCookiePresent method test.
-    */
+    // Create cookie for testCookiePresent method test.
     /* FIXME: Cactus does not send cookies?
     public void beginCookieGreaterEqual(WebRequest testRequest) {
        testRequest.addCookie(COOKIE_KEY, GREATER_VAL);
     }
     */
 
-    /**
-     * Verify the value stored in a cookie using <code>GreaterEqualTag</code>.
-    */
+    // Verify the value stored in a cookie using GreaterEqualTag.
     /* FIXME: Cactus does not send cookies?
     public void testCookieGreaterEqual() throws ServletException,  JspException {
         GreaterEqualTag ge = new GreaterEqualTag();

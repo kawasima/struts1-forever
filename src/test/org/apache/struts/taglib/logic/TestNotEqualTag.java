@@ -100,9 +100,7 @@ public class TestNotEqualTag extends TestCase {
         net = null;
     }
 
-    /**
-     * Create cookie for testCookieStringEquals method test.
-    */
+    // Create cookie for testCookieStringEquals method test.
     /* FIXME: Cactus does not send cookies?
     public void beginCookieStringEquals(WebRequest testRequest) {
        testRequest.addCookie(COOKIE_KEY, "abc");

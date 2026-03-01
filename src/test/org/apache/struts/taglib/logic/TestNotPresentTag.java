@@ -200,18 +200,14 @@ public class TestNotPresentTag extends TestCase {
         assertEquals("Value not present (null)", true, npt.condition(false));
     }
 
-    /**
-     * Create cookie for testCookiePresent method test.
-    */
+    // Create cookie for testCookiePresent method test.
     /* FIXME: Cactus does not send cookies?
     public void beginCookiePresent(WebRequest testRequest) {
        testRequest.addCookie(COOKIE_KEY, "cookie value");
     }
     */
 
-    /**
-     * Verify that there is an cookie using the <code>PresentTag</code>.
-    */
+    // Verify that there is an cookie using the PresentTag.
     /* FIXME: Cactus does not send cookies?
     public void testCookiePresent() throws ServletException,  javax.servlet.jsp.JspException {
         NotPresentTag npt = new NotPresentTag();

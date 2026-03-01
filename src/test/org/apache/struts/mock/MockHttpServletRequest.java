@@ -68,14 +68,17 @@ public class MockHttpServletRequest implements HttpServletRequest {
 
     public MockHttpServletRequest(HttpSession session) {
         super();
-        setHttpSession(session);
+        this.session = session;
     }
 
 
     public MockHttpServletRequest(String contextPath, String servletPath,
                                   String pathInfo, String queryString) {
         super();
-        setPathElements(contextPath, servletPath, pathInfo, queryString);
+        this.contextPath = contextPath;
+        this.servletPath = servletPath;
+        this.pathInfo = pathInfo;
+        this.queryString = queryString;
     }
 
 
@@ -84,8 +87,11 @@ public class MockHttpServletRequest implements HttpServletRequest {
                                   String pathInfo, String queryString,
                                   HttpSession session) {
         super();
-        setPathElements(contextPath, servletPath, pathInfo, queryString);
-        setHttpSession(session);
+        this.contextPath = contextPath;
+        this.servletPath = servletPath;
+        this.pathInfo = pathInfo;
+        this.queryString = queryString;
+        this.session = session;
     }
 
 

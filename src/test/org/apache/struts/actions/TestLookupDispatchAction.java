@@ -15,7 +15,6 @@
  */
 package org.apache.struts.actions;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

@@ -85,18 +85,14 @@ public class TestGreaterThanTag extends TestCase {
 
     //----- Test initApplication() method --------------------------------------
 
-    /**
-     * Create cookie for testCookieGreaterThan method test.
-    */
+    // Create cookie for testCookieGreaterThan method test.
     /* FIXME: Cactus does not send cookies?
     public void beginCookieGreaterThan(WebRequest testRequest) {
        testRequest.addCookie(COOKIE_KEY, GREATER_VAL);
     }
     */
 
-    /**
-     * Verify the value stored in a cookie using <code>GreaterThanTag</code>.
-    */
+    // Verify the value stored in a cookie using GreaterThanTag.
     /* FIXME: Cactus does not send cookies?
     public void testCookieGreaterThan() throws ServletException,  JspException {
         GreaterThanTag gt = new GreaterThanTag();

@@ -70,7 +70,19 @@ public class MockPageContext extends PageContext {
                            ServletRequest request,
                            ServletResponse response) {
         super();
-        setValues(config, request, response);
+        this.config = config;
+        if (config != null) {
+            this.application = config.getServletContext();
+        } else {
+            this.application = null;
+        }
+        this.request = request;
+        this.response = response;
+        if (request != null) {
+            this.session = ((HttpServletRequest) request).getSession(false);
+        } else {
+            this.session = null;
+        }
     }
 
 
