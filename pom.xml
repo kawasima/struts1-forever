@@ -320,6 +320,7 @@
             <include>org/apache/struts/util/Test*.java</include>
             <include>org/apache/struts/upload/Test*.java</include>
             <include>org/apache/struts/validator/Test*.java</include>
+            <include>org/apache/struts/tiles/TestI18nFactorySetPathTraversal.java</include>
           </includes>
         </configuration>
       </plugin>
