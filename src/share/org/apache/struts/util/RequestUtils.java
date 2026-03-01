@@ -489,6 +489,15 @@ public class RequestUtils {
                 continue;
             }
 
+            // CVE-2016-1182: block properties that must not be set from
+            // request parameters.  SuppressPropertiesBeanIntrospector
+            // handles standard JavaBeans, but DynaBean implementations
+            // bypass introspection, so we filter here as well.
+            if ("validatorResults".equals(stripped)
+                    || "resultValueMap".equals(stripped)) {
+                continue;
+            }
+
             // Populate parameters, except "standard" struts attributes
             // such as 'org.apache.struts.action.CANCEL'
             if (!(stripped.startsWith("org.apache.struts."))) {
