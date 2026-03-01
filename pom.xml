@@ -311,8 +311,11 @@
             <include>org/apache/struts/action/TestDynaActionForm.java</include>
             <include>org/apache/struts/action/TestDynaActionFormClass.java</include>
             <include>org/apache/struts/action/TestActionServlet.java</include>
-            <include>org/apache/struts/config/TestModuleConfig.java</include>
-            <include>org/apache/struts/config/TestActionConfigMatcher.java</include>
+            <include>org/apache/struts/actions/Test*.java</include>
+            <include>org/apache/struts/config/Test*.java</include>
+            <include>org/apache/struts/taglib/TestTagUtils.java</include>
+            <include>org/apache/struts/taglib/bean/Test*.java</include>
+            <include>org/apache/struts/taglib/html/Test*.java</include>
             <include>org/apache/struts/taglib/logic/Test*.java</include>
             <include>org/apache/struts/util/Test*.java</include>
           </includes>

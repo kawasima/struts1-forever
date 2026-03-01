@@ -1,0 +1,181 @@
+/*
+ * Copyright 2026 The Struts1-Forever Project.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.struts.util;
+
+import junit.framework.TestCase;
+
+import org.apache.struts.Globals;
+import org.apache.struts.mock.MockHttpServletRequest;
+import org.apache.struts.mock.MockHttpSession;
+import org.apache.struts.taglib.html.Constants;
+
+/**
+ * Unit tests for {@link TokenProcessor}.
+ *
+ * <p>TokenProcessor provides double-submit / CSRF protection via a per-session
+ * token stored under {@link Globals#TRANSACTION_TOKEN_KEY}.  The token is
+ * submitted as request parameter {@link Constants#TOKEN_KEY} and validated
+ * server-side.</p>
+ */
+public class TestTokenProcessor extends TestCase {
+
+    /**
+     * MockHttpSession with getId() implemented.
+     * TokenProcessor.generateToken() calls session.getId() to build the token,
+     * but MockHttpSession throws UnsupportedOperationException for getId().
+     */
+    private static class TokenSession extends MockHttpSession {
+        public String getId() {
+            return "test-session-id-12345";
+        }
+    }
+
+    private TokenProcessor tp;
+    private TokenSession session;
+    private MockHttpServletRequest request;
+
+    protected void setUp() {
+        tp = TokenProcessor.getInstance();
+        session = new TokenSession();
+        request = new MockHttpServletRequest(session);
+    }
+
+    // ------------------------------------------------------------------
+    // getInstance
+    // ------------------------------------------------------------------
+
+    public void testGetInstance_ReturnsSingleton() {
+        assertSame(TokenProcessor.getInstance(), TokenProcessor.getInstance());
+    }
+
+    // ------------------------------------------------------------------
+    // generateToken
+    // ------------------------------------------------------------------
+
+    public void testGenerateToken_ReturnsNonNullHexString() {
+        String token = tp.generateToken(request);
+        assertNotNull(token);
+        assertTrue("Token should be a non-empty hex string", token.length() > 0);
+        assertTrue("Token should contain only hex digits",
+                token.matches("[0-9a-f]+"));
+    }
+
+    public void testGenerateToken_TwoCallsProduceDifferentTokens()
+            throws InterruptedException {
+        // Two successive calls must produce distinct values (timestamp-based
+        // collision avoidance is built into the implementation)
+        String t1 = tp.generateToken(request);
+        String t2 = tp.generateToken(request);
+        assertFalse("Successive tokens must differ", t1.equals(t2));
+    }
+
+    // ------------------------------------------------------------------
+    // saveToken / isTokenValid
+    // ------------------------------------------------------------------
+
+    public void testSaveToken_StoresTokenInSession() {
+        tp.saveToken(request);
+        String saved = (String) session.getAttribute(Globals.TRANSACTION_TOKEN_KEY);
+        assertNotNull("Token must be saved in session", saved);
+        assertTrue(saved.length() > 0);
+    }
+
+    public void testIsTokenValid_ValidToken_ReturnsTrue() {
+        tp.saveToken(request);
+        String saved = (String) session.getAttribute(Globals.TRANSACTION_TOKEN_KEY);
+
+        request.addParameter(Constants.TOKEN_KEY, saved);
+
+        assertTrue("Valid token must return true", tp.isTokenValid(request));
+    }
+
+    public void testIsTokenValid_WrongToken_ReturnsFalse() {
+        tp.saveToken(request);
+
+        request.addParameter(Constants.TOKEN_KEY, "wrong-token-value");
+
+        assertFalse("Wrong token must return false", tp.isTokenValid(request));
+    }
+
+    public void testIsTokenValid_NoRequestParameter_ReturnsFalse() {
+        tp.saveToken(request);
+        // no TOKEN_KEY parameter added
+
+        assertFalse("Missing token parameter must return false",
+                tp.isTokenValid(request));
+    }
+
+    public void testIsTokenValid_NoSessionToken_ReturnsFalse() {
+        // token never saved in session
+        request.addParameter(Constants.TOKEN_KEY, "somevalue");
+
+        assertFalse("No session token must return false", tp.isTokenValid(request));
+    }
+
+    public void testIsTokenValid_NoSession_ReturnsFalse() {
+        // request with no session (getSession(false) returns null)
+        MockHttpServletRequest noSessionRequest = new MockHttpServletRequest(null);
+        noSessionRequest.addParameter(Constants.TOKEN_KEY, "somevalue");
+
+        assertFalse("No session must return false", tp.isTokenValid(noSessionRequest));
+    }
+
+    // ------------------------------------------------------------------
+    // isTokenValid with reset=true
+    // ------------------------------------------------------------------
+
+    public void testIsTokenValid_Reset_RemovesTokenFromSession() {
+        tp.saveToken(request);
+        String saved = (String) session.getAttribute(Globals.TRANSACTION_TOKEN_KEY);
+        request.addParameter(Constants.TOKEN_KEY, saved);
+
+        assertTrue(tp.isTokenValid(request, true));
+
+        assertNull("Token must be removed from session after reset",
+                session.getAttribute(Globals.TRANSACTION_TOKEN_KEY));
+    }
+
+    public void testIsTokenValid_ResetFalse_KeepsTokenInSession() {
+        tp.saveToken(request);
+        String saved = (String) session.getAttribute(Globals.TRANSACTION_TOKEN_KEY);
+        request.addParameter(Constants.TOKEN_KEY, saved);
+
+        assertTrue(tp.isTokenValid(request, false));
+
+        assertNotNull("Token must remain in session when reset=false",
+                session.getAttribute(Globals.TRANSACTION_TOKEN_KEY));
+    }
+
+    // ------------------------------------------------------------------
+    // resetToken
+    // ------------------------------------------------------------------
+
+    public void testResetToken_RemovesTokenFromSession() {
+        tp.saveToken(request);
+        assertNotNull(session.getAttribute(Globals.TRANSACTION_TOKEN_KEY));
+
+        tp.resetToken(request);
+
+        assertNull("resetToken() must remove the token from the session",
+                session.getAttribute(Globals.TRANSACTION_TOKEN_KEY));
+    }
+
+    public void testResetToken_NoSession_DoesNotThrow() {
+        MockHttpServletRequest noSessionRequest = new MockHttpServletRequest(null);
+        // Must not throw
+        tp.resetToken(noSessionRequest);
+    }
+}
