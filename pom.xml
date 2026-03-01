@@ -318,6 +318,7 @@
             <include>org/apache/struts/taglib/html/Test*.java</include>
             <include>org/apache/struts/taglib/logic/Test*.java</include>
             <include>org/apache/struts/util/Test*.java</include>
+            <include>org/apache/struts/upload/Test*.java</include>
           </includes>
         </configuration>
       </plugin>
