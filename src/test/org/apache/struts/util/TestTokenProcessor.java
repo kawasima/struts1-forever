@@ -32,24 +32,13 @@ import org.apache.struts.taglib.html.Constants;
  */
 public class TestTokenProcessor extends TestCase {
 
-    /**
-     * MockHttpSession with getId() implemented.
-     * TokenProcessor.generateToken() calls session.getId() to build the token,
-     * but MockHttpSession throws UnsupportedOperationException for getId().
-     */
-    private static class TokenSession extends MockHttpSession {
-        public String getId() {
-            return "test-session-id-12345";
-        }
-    }
-
     private TokenProcessor tp;
-    private TokenSession session;
+    private MockHttpSession session;
     private MockHttpServletRequest request;
 
     protected void setUp() {
         tp = TokenProcessor.getInstance();
-        session = new TokenSession();
+        session = new MockHttpSession();
         request = new MockHttpServletRequest(session);
     }
 
@@ -73,13 +62,29 @@ public class TestTokenProcessor extends TestCase {
                 token.matches("[0-9a-f]+"));
     }
 
-    public void testGenerateToken_TwoCallsProduceDifferentTokens()
-            throws InterruptedException {
-        // Two successive calls must produce distinct values (timestamp-based
-        // collision avoidance is built into the implementation)
+    public void testGenerateToken_TwoCallsProduceDifferentTokens() {
+        // Two successive calls must produce distinct values; SecureRandom
+        // guarantees statistical independence between calls.
         String t1 = tp.generateToken(request);
         String t2 = tp.generateToken(request);
         assertFalse("Successive tokens must differ", t1.equals(t2));
+    }
+
+    public void testGenerateToken_SameSession_ProducesUnpredictableDistinctTokens() {
+        // Tokens generated from the same session must be statistically
+        // independent. With SecureRandom, each call draws fresh 160-bit
+        // entropy regardless of session state, making token values
+        // unpredictable even when the session ID is known to an attacker.
+        String t1 = tp.generateToken(request);
+        String t2 = tp.generateToken(request);
+        String t3 = tp.generateToken(request);
+
+        assertNotNull("Token must not be null", t1);
+        assertTrue("Token must be a non-empty hex string", t1.length() > 0);
+        assertTrue("Token must contain only hex digits", t1.matches("[0-9a-f]+"));
+        assertFalse("Successive tokens must differ (t1 vs t2)", t1.equals(t2));
+        assertFalse("Successive tokens must differ (t1 vs t3)", t1.equals(t3));
+        assertFalse("Successive tokens must differ (t2 vs t3)", t2.equals(t3));
     }
 
     // ------------------------------------------------------------------
