@@ -10,6 +10,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **struts1-forever** is a maintained fork of Apache Struts 1.2.9, providing security fixes for legacy Struts 1 applications. It is a Java web MVC framework built with Maven.
 
+## Backward Compatibility Policy
+
+**Backward compatibility is the top priority.** This library is used in production legacy systems where any behavioral change can cause breakage. All changes — including security fixes — must preserve the existing public API and observable behavior.
+
+- Do not change method signatures, return values, or exception types of public/protected classes.
+- Do not alter default configuration values or processing order.
+- Do not remove or rename any public class, method, or field.
+- If a security fix unavoidably requires a breaking change, **stop and consult the maintainer before proceeding.** Never land a breaking change without explicit approval.
+
 ## Build Commands
 
 ```bash
