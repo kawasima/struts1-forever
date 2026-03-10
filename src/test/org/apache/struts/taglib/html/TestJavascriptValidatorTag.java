@@ -36,20 +36,16 @@ import org.apache.struts.validator.ValidatorPlugIn;
 /**
  * XSS tests for {@link JavascriptValidatorTag} — field key injection.
  *
- * <h3>Vulnerability: field.getKey() inserted into JS string literal without escaping</h3>
+ * <h3>Fix: field.getKey() is now escaped before insertion into JS string literal</h3>
  *
  * <p>{@code JavascriptValidatorTag.createDynamicJavascript()} generates JavaScript
- * like {@code this.a0 = new Array("<fieldKey>", ...)}. The field key (line 499) is
- * interpolated directly without escaping, while the validation message on line 501
- * is correctly escaped with {@code escapeQuotes()}.
+ * like {@code this.a0 = new Array("<fieldKey>", ...)}. The field key was previously
+ * interpolated directly without escaping, while the validation message was correctly
+ * escaped with {@code escapeQuotes()}. The fix wraps {@code field.getKey()} with
+ * the existing {@code escapeJavascript()} method.</p>
  *
- * <p>A field key containing {@code "} (double-quote) breaks out of the JavaScript
- * string literal and allows injection of arbitrary JavaScript — XSS.</p>
- *
- * <p>The test {@link #testFieldKey_ContainsDoubleQuote_IsEscapedInOutput()} currently
- * <strong>FAILS</strong> — it must fail before the fix and pass after. Once the fix
- * is applied (wrapping {@code field.getKey()} with {@code escapeJavascript()}),
- * the raw double-quote will no longer appear in the output.</p>
+ * <p>A field key containing {@code "} (double-quote) would break out of the JavaScript
+ * string literal and allow injection of arbitrary JavaScript — XSS.</p>
  */
 public class TestJavascriptValidatorTag extends TestCase {
 
@@ -180,19 +176,19 @@ public class TestJavascriptValidatorTag extends TestCase {
      * A double-quote in a field key must be backslash-escaped in the JavaScript
      * string literal to prevent breaking out of the string context (XSS).
      *
-     * <p>Currently <strong>FAILS</strong> because {@code field.getKey()} on
-     * line 499 of {@code JavascriptValidatorTag.java} is not passed through
-     * {@code escapeJavascript()}. Fix: replace {@code field.getKey()} with
-     * {@code escapeJavascript(field.getKey())} at that line.</p>
+     * <p>Note: {@code "&quot;"} is the XML entity for {@code "}; the XML parser
+     * delivers a literal {@code "} to {@code field.getKey()}, so the JS output
+     * must contain the backslash-escaped form {@code bad\"field}.</p>
      */
     public void testFieldKey_ContainsDoubleQuote_IsEscapedInOutput() throws Exception {
+        // "&quot;" is the XML entity for '"'; field.getKey() returns the literal char '"'
         registerValidatorResources("bad&quot;field");
         String output = renderTag();
         // The raw double-quote must NOT appear inside the Array(...) call
         assertFalse("Raw double-quote in field key must not appear unescaped in JS output",
                 output.contains("\"bad\"field\""));
-        // Instead the escaped form must be present
-        assertTrue("Double-quote in field key must be backslash-escaped",
-                output.contains("bad\\\"field") || output.contains("bad&quot;field"));
+        // The escaped form (backslash + double-quote) must be present
+        assertTrue("Double-quote in field key must be backslash-escaped as \\\"",
+                output.contains("bad\\\"field"));
     }
 }
