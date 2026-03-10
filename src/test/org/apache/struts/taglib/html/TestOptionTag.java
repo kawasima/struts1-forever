@@ -29,22 +29,13 @@ import org.apache.struts.mock.MockServletConfig;
 import org.apache.struts.mock.MockServletContext;
 
 /**
- * XSS tests for {@link OptionTag} — H-3.
+ * Tests for {@link OptionTag} HTML escaping (H-3 fix).
  *
- * <h3>Vulnerability: OptionTag does not HTML-escape value or text</h3>
- *
- * <p>{@code OptionTag.renderOptionElement()} appends {@code this.value}
- * directly into the {@code value="..."} attribute (line 238) without calling
- * {@link org.apache.struts.taglib.TagUtils#filter(String)}.
- * Similarly, body text ({@code text} field) is appended via
- * {@link OptionTag#text()} without escaping.</p>
- *
- * <p>By contrast, {@code <html:options>} and {@code <html:optionsCollection>}
- * have a {@code filter} attribute (defaulting to {@code true}).
- * {@code <html:option>} lacks this protection entirely (H-3).</p>
- *
- * <p>Tests that assert escaping are expected to <strong>FAIL</strong>
- * until OptionTag is fixed.</p>
+ * <p>Verifies that {@code OptionTag} escapes the {@code value} attribute
+ * and text content via {@link org.apache.struts.taglib.TagUtils#filter(String)}
+ * when the {@code filter} attribute is {@code true} (the default),
+ * matching the behavior of {@code <html:options>} and
+ * {@code <html:optionsCollection>}.</p>
  */
 public class TestOptionTag extends TestCase {
 
@@ -164,23 +155,8 @@ public class TestOptionTag extends TestCase {
     // ------------------------------------------------------------------
 
     /**
-     * Documents that a double-quote in the value attribute is currently written
-     * raw, breaking out of the attribute context (H-3).
-     *
-     * <p>This test PASSES and documents the current broken state.
-     * It should be removed once the fix is applied.</p>
-     */
-    public void testValueAttribute_DoubleQuote_CurrentlyWrittenRaw() throws Exception {
-        String output = runOptionTag("a\"b", "Label");
-        assertTrue("Unescaped double-quote currently appears in value attribute (H-3)",
-                output.contains("value=\"a\"b\""));
-    }
-
-    /**
      * A double-quote in the value attribute must be escaped as {@code &quot;}
      * to prevent breaking out of the attribute context (H-3).
-     *
-     * <p>Currently FAILS — OptionTag does not escape the value attribute.</p>
      */
     public void testValueAttribute_EscapesDoubleQuote() throws Exception {
         String output = runOptionTag("a\"b", "Label");
@@ -193,8 +169,6 @@ public class TestOptionTag extends TestCase {
     /**
      * A less-than sign in the value attribute must be escaped as {@code &lt;}
      * to prevent HTML injection (H-3).
-     *
-     * <p>Currently FAILS — OptionTag does not escape the value attribute.</p>
      */
     public void testValueAttribute_EscapesLessThan() throws Exception {
         String output = runOptionTag("<script>", "Label");
@@ -208,22 +182,7 @@ public class TestOptionTag extends TestCase {
     // ------------------------------------------------------------------
 
     /**
-     * Documents that an XSS payload in the option text content is currently
-     * written raw to the output (H-3).
-     *
-     * <p>This test PASSES and documents the current broken state.
-     * It should be removed once the fix is applied.</p>
-     */
-    public void testText_ScriptTag_CurrentlyWrittenRaw() throws Exception {
-        String output = runOptionTag("v", "<script>alert(1)</script>");
-        assertTrue("Unescaped script tag currently appears in option text (H-3)",
-                output.contains("<script>alert(1)</script>"));
-    }
-
-    /**
      * A script tag in the option text content must be HTML-escaped (H-3).
-     *
-     * <p>Currently FAILS — OptionTag does not escape text().</p>
      */
     public void testText_EscapesScriptTag() throws Exception {
         String output = runOptionTag("v", "<script>alert(1)</script>");
@@ -235,13 +194,39 @@ public class TestOptionTag extends TestCase {
 
     /**
      * A single-quote in option text must be escaped as {@code &#39;} (H-3).
-     *
-     * <p>Currently FAILS — OptionTag does not escape text().</p>
      */
     public void testText_EscapesSingleQuote() throws Exception {
         String output = runOptionTag("v", "it's");
         assertFalse("Raw single-quote in option text must be escaped (H-3)",
             output.contains(">it's<"));
         assertTrue("&#39; must appear", output.contains("&#39;"));
+    }
+
+    // ------------------------------------------------------------------
+    // filter=false — backward compatibility
+    // ------------------------------------------------------------------
+
+    /**
+     * When filter is explicitly set to false, values and text must NOT be
+     * escaped, preserving backward compatibility for users who need raw HTML.
+     */
+    public void testOption_FilterFalse_NoEscaping() throws Exception {
+        stubSelectTag();
+        out = new MockJspWriter();
+        pageContext.setJspWriter(out);
+
+        InjectableOptionTag tag = new InjectableOptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue("a\"b");
+        tag.setBodyText("<b>bold</b>");
+        tag.setFilter(false);
+        tag.doStartTag();
+        tag.doEndTag();
+
+        String output = out.getContent();
+        assertTrue("With filter=false, raw double-quote must appear",
+                output.contains("value=\"a\"b\""));
+        assertTrue("With filter=false, raw HTML must appear in text",
+                output.contains("<b>bold</b>"));
     }
 }
