@@ -311,6 +311,7 @@
             <include>org/apache/struts/action/TestDynaActionForm.java</include>
             <include>org/apache/struts/action/TestDynaActionFormClass.java</include>
             <include>org/apache/struts/action/TestActionServlet.java</include>
+            <include>org/apache/struts/action/TestDigesterXxePrevention.java</include>
             <include>org/apache/struts/actions/Test*.java</include>
             <include>org/apache/struts/config/Test*.java</include>
             <include>org/apache/struts/taglib/TestTagUtils.java</include>
