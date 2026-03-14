@@ -102,19 +102,6 @@ public class TestBaseHandlerTagXss extends TestCase {
     // ------------------------------------------------------------------
 
     /**
-     * Documents that a double-quote in an onclick value is currently written
-     * raw, breaking out of the attribute context (M-4).
-     *
-     * <p>This test PASSES and documents the current broken state.
-     * It should be removed once the fix is applied.</p>
-     */
-    public void testOnclick_DoubleQuote_CurrentlyWrittenRaw() throws Exception {
-        String output = renderTextTagWithOnclick("bad\"injection");
-        assertTrue("Unescaped double-quote currently appears in onclick attribute (M-4)",
-                output.contains("onclick=\"bad\"injection\""));
-    }
-
-    /**
      * A double-quote in an onclick value must be escaped as {@code &quot;}
      * to prevent breaking out of the attribute context (XSS).
      *
@@ -185,33 +172,6 @@ public class TestBaseHandlerTagXss extends TestCase {
     // ------------------------------------------------------------------
     // tabindex — also goes through prepareAttribute (M-4)
     // ------------------------------------------------------------------
-
-    /**
-     * Documents that tabindex is currently written without escaping,
-     * allowing attribute injection (M-4).
-     *
-     * <p>This test PASSES and documents the current broken state.
-     * It should be removed once the fix is applied.</p>
-     */
-    public void testTabindex_DoubleQuote_CurrentlyWrittenRaw() throws Exception {
-        pageContext.setAttribute("testBean", "someValue", PageContext.REQUEST_SCOPE);
-        out = new MockJspWriter();
-        pageContext.setJspWriter(out);
-
-        TextTag tag = new TextTag();
-        tag.setPageContext(pageContext);
-        tag.setName("testBean");
-        tag.setProperty("class");
-        tag.setValue("someValue");
-        tag.setTabindex("1\" autofocus onfocus=\"alert(1)");
-
-        tag.doStartTag();
-        tag.doEndTag();
-
-        String output = out.getContent();
-        assertTrue("Unescaped tabindex injection currently reaches output (M-4)",
-                output.contains("tabindex=\"1\" autofocus onfocus=\"alert(1)\""));
-    }
 
     /**
      * A double-quote in tabindex must be escaped as {@code &quot;}
