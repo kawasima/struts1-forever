@@ -178,4 +178,32 @@ public class TestTokenProcessor extends TestCase {
         // Must not throw
         tp.resetToken(noSessionRequest);
     }
+
+    // ------------------------------------------------------------------
+    // Constant-time comparison regression guard
+    // ------------------------------------------------------------------
+
+    /**
+     * Token comparison must return false for a token that differs only in its
+     * last character, regardless of where the difference lies.
+     *
+     * Documents the contract that must hold when using constant-time comparison
+     * (MessageDigest.isEqual): the result must not depend on the position of
+     * the first differing byte. String.equals() satisfies this functionally
+     * but is not timing-safe; MessageDigest.isEqual() satisfies both.
+     */
+    public void testIsTokenValid_NearMatchToken_ReturnsFalse() {
+        tp.saveToken(request);
+        String saved = (String) session.getAttribute(Globals.TRANSACTION_TOKEN_KEY);
+
+        // Corrupt only the last character to verify the comparison evaluates
+        // the full token rather than short-circuiting.
+        char[] chars = saved.toCharArray();
+        chars[chars.length - 1] = (chars[chars.length - 1] == 'a') ? 'b' : 'a';
+        String nearMatch = new String(chars);
+
+        request.addParameter(Constants.TOKEN_KEY, nearMatch);
+        assertFalse("Token differing only in last character must return false",
+                tp.isTokenValid(request));
+    }
 }
