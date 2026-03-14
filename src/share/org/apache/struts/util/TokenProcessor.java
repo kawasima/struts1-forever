@@ -124,7 +124,7 @@ public class TokenProcessor {
             return false;
         }
 
-        return saved.equals(token);
+        return MessageDigest.isEqual(saved.getBytes(), token.getBytes());
     }
 
     /**
