@@ -18,6 +18,7 @@
 
 package org.apache.struts.util;
 
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 
 import javax.servlet.http.HttpServletRequest;
