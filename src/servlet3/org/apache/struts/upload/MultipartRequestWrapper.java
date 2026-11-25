@@ -21,42 +21,37 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletRequestWrapper;
+import javax.servlet.ServletRequest;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
- * Jakarta variant of {@code MultipartRequestWrapper}, packaged only in the
- * jakarta JAR in place of the transformed javax class.
+ * This class functions as a wrapper around HttpServletRequest to
+ * provide working getParameter methods for multipart requests.
  *
- * <p>The javax class implements {@code HttpServletRequest} directly so that
- * it still compiles against Servlet 2.2, which freezes the methods it can
- * delegate at that version. This class extends
- * {@link HttpServletRequestWrapper} instead, so the container supplies every
- * current and future method.</p>
+ * <p>This variant extends {@link HttpServletRequestWrapper}, so the
+ * container supplies every method of its Servlet API version. It is
+ * compiled against Servlet 3.0 and packaged in the <code>servlet3</code>
+ * and, transformed, in the <code>jakarta</code> JAR. The default JAR has a
+ * variant that implements <code>HttpServletRequest</code> directly and runs
+ * on Servlet 2.2.</p>
  *
- * <p>Differences from the javax class:</p>
+ * <p>Differences from the Servlet 2.2 variant:</p>
  * <ul>
- * <li>There is no {@code protected HttpServletRequest request} field. The
- * wrapped request is held only by {@code ServletRequestWrapper}, whose
- * methods use it directly, and containers replace it through
- * {@link #setRequest(ServletRequest)} during forward and include. A second
- * copy in a field could silently point to a different request. Subclasses
- * use {@link #getRequest()} and {@link #setRequest(ServletRequest)}.</li>
+ * <li>There is no <code>protected HttpServletRequest request</code> field.
+ * The wrapped request is held only by <code>ServletRequestWrapper</code>,
+ * and containers replace it through {@link #setRequest(ServletRequest)}
+ * during forward and include. Subclasses use {@link #getRequest()} and
+ * {@link #setRequest(ServletRequest)}.</li>
  * <li>{@link #setRequest(ServletRequest)} accepts only an
- * {@code HttpServletRequest}.</li>
- * <li>{@link #getRealPath(String)} and {@link #isRequestedSessionIdFromUrl()}
- * cannot delegate to the method of the same name, which Servlet 6.0
- * removed. Every other method reads the wrapped request through the same
- * methods as the javax class.</li>
+ * <code>HttpServletRequest</code>.</li>
+ * <li>{@link #getRealPath(String)} reads the real path from the servlet
+ * context, and {@link #isRequestedSessionIdFromUrl()} calls
+ * {@link #isRequestedSessionIdFromURL()}.</li>
  * </ul>
- *
- * <p>Parameter merging is shared with the javax class through
- * {@link MultipartParameters}, and {@code TestMultipartRequestWrapper} runs
- * against both JARs.</p>
  */
 public class MultipartRequestWrapper extends HttpServletRequestWrapper {
 
@@ -110,8 +105,8 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
 
     /**
      * Reads the wrapped request through getParameterNames() and
-     * getParameterValues(), like the javax class, so that request wrappers
-     * that override only those methods are honoured.
+     * getParameterValues(), so that request wrappers that override only
+     * those methods are honoured.
      */
     public Map getParameterMap() {
         HttpServletRequest request = getRequest();
@@ -133,7 +128,7 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
 
     /**
      * Replaces the wrapped request. Rejects anything but an
-     * {@code HttpServletRequest} before changing any state.
+     * <code>HttpServletRequest</code> before changing any state.
      */
     public void setRequest(ServletRequest request) {
         if (!(request instanceof HttpServletRequest)) {
@@ -145,7 +140,7 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
     }
 
     /**
-     * The javax class logs and swallows a failure here instead of throwing
+     * Logs an unsupported encoding instead of throwing
      * {@link UnsupportedEncodingException}.
      */
     public void setCharacterEncoding(String encoding) {
@@ -157,15 +152,14 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
     }
 
     /**
-     * {@code ServletRequest.getRealPath} was removed in Servlet 6.0.
+     * Returns the real path of <code>path</code> in the servlet context.
      */
     public String getRealPath(String path) {
         return getServletContext().getRealPath(path);
     }
 
     /**
-     * {@code HttpServletRequest.isRequestedSessionIdFromUrl} was removed in
-     * Servlet 6.0.
+     * Same as {@link #isRequestedSessionIdFromURL()}.
      */
     public boolean isRequestedSessionIdFromUrl() {
         return isRequestedSessionIdFromURL();

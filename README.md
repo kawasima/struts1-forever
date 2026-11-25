@@ -9,6 +9,30 @@ This struts1's fork is for maintenance to fix the vulnerabilities.
 Original Struts requires Java 1.4 or higher. But struts1-forever requires Java 1.5 or higher.
 Because Commons-Beanutils 1.9.2 is used for preventing a dangerous population.
 
+## Servlet 3.0 to 4.0 (Tomcat 7 to 9)
+
+The default JAR is compiled against Servlet 2.2. On a Servlet 3.0 or later container, calling a method that Servlet 3.0 or later added to `HttpServletRequest` (for example `getServletContext()`) on the request of a multipart form throws `AbstractMethodError`, because Struts passes its own `MultipartRequestWrapper` to the Action.
+
+Each release also ships `struts-<version>-servlet3.jar`. It contains the same classes as the default JAR, except that `org.apache.struts.upload.MultipartRequestWrapper` extends `javax.servlet.http.HttpServletRequestWrapper`, so every method of the container's Servlet API is delegated to the container's request.
+
+| | |
+| --- | --- |
+| Target API | Servlet 3.0 to 4.0 |
+| API compatibility checked against | Servlet 3.0 / JSP 2.2, Servlet 3.1 / JSP 2.3, Servlet 4.0 / JSP 2.3 |
+| Runtime tested on | Tomcat 9.0 (Servlet 4.0) |
+| Class file version | Java 8 |
+
+`MultipartRequestWrapper` has no `protected request` field in this JAR. Subclasses use `getRequest()` and `setRequest()`. Applications on Java 6 or 7, or with subclasses that use the field, stay on the default JAR.
+
+```xml
+<dependency>
+  <groupId>struts</groupId>
+  <artifactId>struts</artifactId>
+  <version>${struts.version}</version>
+  <classifier>servlet3</classifier>
+</dependency>
+```
+
 ## Jakarta EE (Tomcat 10+)
 
 Each release also ships `struts-<version>-jakarta.jar` for containers that use the `jakarta.servlet` namespace. It is built from the same sources as the javax JAR, so it contains the same fixes. Your own code still has to be migrated from `javax.servlet` to `jakarta.servlet`.

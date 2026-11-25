@@ -37,9 +37,9 @@ import org.apache.struts.mock.MockHttpSession;
 /**
  * Tests for {@link MultipartRequestWrapper}.
  *
- * <p>The jakarta JAR ships a different implementation of this class
- * (see <code>src/jakarta</code>). These tests run against both builds and
- * pin the behaviour the two implementations must share. That every
+ * <p>The servlet3 and jakarta JARs ship a different implementation of this
+ * class (see <code>src/servlet3</code>). These tests run against every build
+ * and pin the behaviour the two implementations must share. That every
  * <code>HttpServletRequest</code> method is implemented is checked for all
  * classes by <code>TestServletApiCompatibility</code>.</p>
  */
@@ -139,7 +139,7 @@ public class TestMultipartRequestWrapper extends TestCase {
         assertEquals("hello", ((String[]) map.get("title"))[0]);
     }
 
-    // setRequest(ServletRequest) exists only in the jakarta class, which
+    // setRequest(ServletRequest) exists only in the Servlet 3.0 class, which
     // inherits it from ServletRequestWrapper. Containers call it on forward
     // and include.
 
@@ -204,9 +204,10 @@ public class TestMultipartRequestWrapper extends TestCase {
         assertSame(base.getSession(), wrapper.getSession());
     }
 
-    /** True in the jakarta build, where the method must exist. */
+    /** True for the Servlet 3.0 class, where the method must exist. */
     private static boolean setRequestRequired() {
-        return ServletRequest.class.getName().startsWith("jakarta.");
+        return MultipartRequestWrapper.class.getSuperclass().getName()
+            .endsWith(".servlet.http.HttpServletRequestWrapper");
     }
 
     private static void setRequest(MultipartRequestWrapper w, ServletRequest r)

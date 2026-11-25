@@ -22,13 +22,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build Commands
 
 ```bash
-# Full build, unit tests and the Tomcat 10.1 integration test (JDK 17+)
+# Full build, unit tests and the Tomcat 9.0 / 10.1 integration tests (JDK 17+)
 mvn verify
 
 # Compile only
 mvn compile
 
-# Run all unit tests (on JDK 17+: against both the javax and the jakarta build)
+# Run all unit tests (on JDK 17+: against the javax, servlet3 and jakarta builds)
 mvn test
 
 # Run a single test class
@@ -43,16 +43,15 @@ mvn test-compile
 
 Surefire runs every `**/Test*.java` class and fails when it finds no tests. Exclusions in `pom.xml` must name the issue that removes them.
 
-### javax and jakarta builds
+### javax, servlet3 and jakarta builds
 
-The sources are written against `javax.servlet` only. On JDK 17+ the `jakarta` profile in `pom.xml` is active and, in addition to the normal build:
+The sources are written against `javax.servlet` only, and the default JAR is compiled against Servlet 2.2. On JDK 17+ the `jakarta` profile in `pom.xml` is active and, in addition to the normal build, builds two more JARs from the same classes with `src/servlet3/` in place of their Servlet 2.2 counterparts:
 
-- runs every unit test a second time against the jakarta build on Jakarta Servlet 6.0 (surefire execution `jakarta-test`, reports in `target/surefire-reports-jakarta/`),
-- runs `TestServletApiCompatibility` against Servlet 5.0 and 6.1 as well (`jakarta-compat-5.0`, `jakarta-compat-6.1`),
-- packages `target/struts-<version>-jakarta.jar` (classes transformed by Eclipse Transformer, with commons-fileupload bundled),
-- runs `src/it/jakarta-tomcat` with maven-invoker-plugin in `mvn verify`, which deploys that JAR to an embedded Tomcat 10.1.
+- `target/struts-<version>-servlet3.jar` for javax Servlet 3.0 to 4.0. Every unit test runs against it on Servlet 4.0 (surefire execution `servlet3-test`, reports in `target/surefire-reports-servlet3/`), and `TestServletApiCompatibility` against Servlet 3.0 and 3.1 as well (`servlet3-compat-3.0`, `servlet3-compat-3.1`).
+- `target/struts-<version>-jakarta.jar` (classes transformed by Eclipse Transformer, with commons-fileupload bundled). Every unit test runs against it on Jakarta Servlet 6.0 (`jakarta-test`, reports in `target/surefire-reports-jakarta/`), and `TestServletApiCompatibility` against Servlet 5.0 and 6.1 as well (`jakarta-compat-5.0`, `jakarta-compat-6.1`).
+- `mvn verify` runs `src/it/servlet3-tomcat` and `src/it/jakarta-tomcat` with maven-invoker-plugin, which deploy these JARs to an embedded Tomcat 9.0 and 10.1.
 
-A change is not done until all of these pass. If a test passes under javax and fails under jakarta, the cause is usually a Servlet/JSP API method that was removed in Servlet 6.0 or added after Servlet 2.2; `TestServletApiCompatibility` lists every class, method and field that does not link. Its checks live in `ServletApiLinkChecker`; a change there needs a fixture test in `TestServletApiLinkChecker` that fails without it.
+A change is not done until all of these pass. If a test passes in one build and fails in another, the cause is usually a Servlet/JSP API method that was removed in Servlet 6.0 or added after Servlet 2.2; `TestServletApiCompatibility` lists every class, method and field that does not link. Its checks live in `ServletApiLinkChecker`; a change there needs a fixture test in `TestServletApiLinkChecker` that fails without it.
 
 On JDK 8–16 the profile is inactive and only the javax build runs.
 
@@ -96,8 +95,9 @@ When running under Tomcat 9 (Servlet 5.0), Tomcat honours the `web.xml` `<taglib
 ## Source Layout
 
 - **`src/share/`** — Main production sources (Maven `sourceDirectory`)
-- **`src/test/`** — Test sources (Maven `testSourceDirectory`); run against both builds
-- **`src/jakarta/`** — Classes that replace their transformed javax counterpart in the jakarta JAR only. Keep this to classes that cannot work after transformation (currently `MultipartRequestWrapper`). Put the Struts behaviour they share with the javax class in a package-private helper in `src/share/` that takes no Servlet API types (e.g. `MultipartParameters`), keep no state that duplicates state of a Servlet API superclass, and cover the shared behaviour with tests in `src/test/`
+- **`src/test/`** — Test sources (Maven `testSourceDirectory`); run against every build
+- **`src/servlet3/`** — Classes that replace their `src/share/` counterpart in the servlet3 and (transformed) jakarta JARs, compiled against Servlet 3.0. Keep this to classes that cannot cover newer Servlet APIs while compiling against Servlet 2.2 (currently `MultipartRequestWrapper`). Put the Struts behaviour they share with the Servlet 2.2 class in a package-private helper in `src/share/` that takes no Servlet API types (e.g. `MultipartParameters`), keep no state that duplicates state of a Servlet API superclass, and cover the shared behaviour with tests in `src/test/`
+- **`src/it/servlet3-tomcat/`** — Integration test webapp for the servlet3 JAR (Java 11+, Tomcat 9.0)
 - **`src/it/jakarta-tomcat/`** — Integration test webapp for the jakarta JAR (Java 11+, Tomcat 10.1)
 - **`conf/share/`** — DTDs and `validator-rules.xml`; copied to `target/classes/org/apache/struts/resources/` at compile time
 - **`doc/userGuide/`** — XML source for tag library documentation; XSLT-transformed into TLD files at `generate-resources` phase
@@ -207,7 +207,7 @@ Production code (`src/share/`) is compiled with `source=1.4` / `target=1.4` (ove
 
 Violations compile silently on JDK 11+ (where `release=8` applies) but would fail on a strict JDK 1.4 build environment.
 
-`src/jakarta/` and `src/it/` are exempt: they only exist for Jakarta EE, which requires Java 8 (`src/jakarta/`, compiled against Jakarta Servlet 5.0) or Java 11 (`src/it/`, Tomcat 10.1).
+`src/servlet3/` and `src/it/` are exempt: they are compiled for Java 8 (`src/servlet3/`, against Servlet 3.0) or Java 11 (`src/it/`).
 
 Test naming conventions:
 
@@ -242,11 +242,11 @@ Releases follow the naming convention `1.2.9-forever-N` (e.g., `1.2.9-forever-1`
 ### Steps
 
 1. **Update `pom.xml` version** from `1.2.10-SNAPSHOT` to `1.2.9-forever-N` and commit.
-2. **Build and test the jakarta JAR with JDK 17+**, and move it out of `target/` because the next step cleans it:
+2. **Build and test the servlet3 and jakarta JARs with JDK 17+**, and move them out of `target/` because the next step cleans it:
 
    ```bash
    mvn clean verify
-   mkdir -p dist && cp target/struts-1.2.9-forever-N-jakarta.jar dist/
+   mkdir -p dist && cp target/struts-1.2.9-forever-N-servlet3.jar target/struts-1.2.9-forever-N-jakarta.jar dist/
    ```
 
 3. **Build the javax JAR with JDK 8** (`-Dmaven.test.skip=true` to skip test compilation):
@@ -258,7 +258,7 @@ Releases follow the naming convention `1.2.9-forever-N` (e.g., `1.2.9-forever-1`
    ```
 
 4. **Tag and push**: `git tag 1.2.9-forever-N && git push origin STRUTS_1_2_BRANCH --tags`
-5. **Create GitHub Release** with `gh release create`, attaching both JARs in `dist/`. The release notes must tell users of the jakarta JAR to remove `commons-fileupload-1.x.jar` from `WEB-INF/lib` (it is bundled) and to keep `commons-io`.
+5. **Create GitHub Release** with `gh release create`, attaching the three JARs in `dist/`. The release notes must tell users of the jakarta JAR to remove `commons-fileupload-1.x.jar` from `WEB-INF/lib` (it is bundled) and to keep `commons-io`.
 6. **Revert `pom.xml`** to `1.2.10-SNAPSHOT` and commit ("Prepare next development iteration").
 
 ### Build JDK Requirement
@@ -273,6 +273,6 @@ The javax release JAR **must be built with JDK 8**. The pom.xml has compiler pro
 
 Building with JDK 11+ produces class files that **cannot run on Java 5, 6, or 7**. Since this library targets legacy environments, always use JDK 8 for release builds to ensure maximum compatibility.
 
-The jakarta JAR is built on JDK 17+ (Eclipse Transformer requires it), so its class files are major version 52 (Java 8+). Jakarta EE 9+ containers require Java 8 or later anyway.
+The servlet3 and jakarta JARs are built on JDK 17+ (Eclipse Transformer requires it), so their class files are major version 52 (Java 8+). Jakarta EE 9+ containers require Java 8 or later anyway; Servlet 3.0 and 3.1 containers on Java 6 or 7 use the default JAR.
 
 **Note**: JDK 8 cannot compile test code that uses annotations (`@Override` etc.), so release builds must use `-Dmaven.test.skip=true`. Tests should be run separately with JDK 11+ before the release.
