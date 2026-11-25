@@ -33,27 +33,14 @@ import org.apache.struts.mock.MockServletContext;
 import org.apache.struts.util.MessageResources;
 
 /**
- * XSS tests for {@link ErrorsTag} — H-2 / CVE-2012-1007.
+ * Tests for {@link ErrorsTag} output escaping (H-2 / CVE-2012-1007).
  *
- * <h3>Vulnerability: ErrorsTag renders message content without HTML escaping</h3>
- *
- * <p>{@code <html:errors>} iterates over {@link ActionMessages} and renders
- * each message. When an {@link ActionMessage} is created with
- * {@code resource=false} (i.e. the key is a literal string, not a resource
- * bundle key), {@code ErrorsTag.doStartTag()} appends {@code report.getKey()}
- * directly to the output buffer ({@code ErrorsTag.java} line 261) with NO call
- * to {@link org.apache.struts.util.ResponseUtils#filter(String)}.
- * If the key contains user-supplied data, this is a direct XSS vector.</p>
- *
- * <p>Even for resource-based messages, the message <em>arguments</em>
- * ({@code report.getValues()}) are passed to
- * {@link org.apache.struts.taglib.TagUtils#message} which uses
- * {@link java.text.MessageFormat} to interpolate them into the pattern —
- * but that method also does not HTML-escape the arguments, so user-controlled
- * arguments in a message pattern can also introduce XSS (CVE-2012-1007).</p>
- *
- * <p>Tests that assert escaping are expected to <strong>FAIL</strong>
- * until {@code ErrorsTag} is fixed to escape output.</p>
+ * <p>A message created with <code>resource=false</code> is user data and is
+ * HTML-escaped as a whole. A message looked up in the message resources is
+ * written as HTML; only the text of its replacement arguments is escaped.
+ * The header, footer, prefix and suffix come from the message resources and
+ * are written as they are. {@link TestHtmlMessageFormatter} covers the
+ * formatting of resource messages in detail.</p>
  */
 public class TestErrorsTag extends TestCase {
 
@@ -180,6 +167,51 @@ public class TestErrorsTag extends TestCase {
 
         assertTrue("Plain text must appear in output unchanged",
                 output.contains("Field is required."));
+    }
+
+    // ------------------------------------------------------------------
+    // Resource message — template is HTML, arguments are escaped
+    // ------------------------------------------------------------------
+
+    /**
+     * Markup written in the message resources is rendered as HTML; the
+     * argument is escaped.
+     */
+    public void testResourceMessage_KeepsTemplateMarkup_EscapesArgument()
+            throws Exception {
+        context.setAttribute(Globals.MESSAGES_KEY,
+                MessageResources.getMessageResources(
+                        "org.apache.struts.taglib.html.TestErrorsTagMessages"));
+        ActionMessages messages = new ActionMessages();
+        messages.add(ActionMessages.GLOBAL_MESSAGE,
+                new ActionMessage("login.failed", "<script>alert(1)</script>"));
+
+        String output = runErrorsTag(messages);
+
+        assertEquals(
+                "Login failed for user <strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong>.",
+                output);
+    }
+
+    /**
+     * The header, footer, prefix and suffix are written as they are around
+     * each message; a literal message is escaped whole.
+     */
+    public void testHeaderFooterPrefixSuffix_WrapEachMessage() throws Exception {
+        context.setAttribute(Globals.MESSAGES_KEY,
+                MessageResources.getMessageResources(
+                        "org.apache.struts.taglib.html.TestErrorsTagLayoutMessages"));
+        ActionMessages messages = new ActionMessages();
+        messages.add(ActionMessages.GLOBAL_MESSAGE,
+                new ActionMessage("error.example", "<x>"));
+        messages.add(ActionMessages.GLOBAL_MESSAGE,
+                new ActionMessage("a <b>", false));
+
+        String output = runErrorsTag(messages);
+
+        assertEquals(
+                "<ul><li><strong>&lt;x&gt;</strong></li><li>a &lt;b&gt;</li></ul>",
+                output);
     }
 
     // ------------------------------------------------------------------

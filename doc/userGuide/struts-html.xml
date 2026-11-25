@@ -1067,6 +1067,16 @@
                 <li><strong>suffix</strong> - Text that will be rendered
                 after each individual error in the list (default "errors.suffix").</li>
                 </ul>
+
+                <p>A message taken from the message resources is written as
+                HTML, and the text of each of its replacement values is
+                filtered for HTML-sensitive characters. Filtering does not
+                make a value safe inside a URL, an event handler, a script
+                or a style. A message that is not a resource key, a message
+                whose key is not found, and every message from
+                <code>MessageResources</code> other than
+                <code>PropertyMessageResources</code> itself are filtered
+                as a whole.</p>
                 </info>
 
                 <attribute>

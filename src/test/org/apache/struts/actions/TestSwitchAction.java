@@ -34,15 +34,12 @@ import org.apache.struts.mock.MockServletContext;
 /**
  * Unit tests for {@link SwitchAction}.
  *
- * <h3>Vulnerability C-1: Path Traversal in SwitchAction</h3>
+ * <h3>C-1: Path Traversal in SwitchAction</h3>
  *
- * <p>SwitchAction reads the {@code page} request parameter and constructs
- * {@code new ActionForward(page)} with no validation. This allows an attacker
- * to read arbitrary server-side resources such as {@code /WEB-INF/web.xml}.</p>
- *
- * <p>Tests that assert a {@code ServletException} is thrown document the
- * required safe behaviour and are expected to <strong>fail</strong> until
- * SwitchAction is fixed to reject dangerous {@code page} values.</p>
+ * <p>SwitchAction forwards to the <code>page</code> request parameter. A
+ * value that reaches a server-side resource such as
+ * <code>/WEB-INF/web.xml</code> must be rejected with a
+ * <code>ServletException</code>.</p>
  */
 public class TestSwitchAction extends TestCase {
 
@@ -131,10 +128,6 @@ public class TestSwitchAction extends TestCase {
 
     // ------------------------------------------------------------------
     // Path traversal — required behaviour: reject with ServletException (C-1)
-    //
-    // These tests FAIL until SwitchAction validates the page parameter.
-    // Do NOT modify production code to bypass validation;
-    // the fix must reject dangerous input with a ServletException.
     // ------------------------------------------------------------------
 
     /**

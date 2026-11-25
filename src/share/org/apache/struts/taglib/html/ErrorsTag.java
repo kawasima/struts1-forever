@@ -247,19 +247,25 @@ public class ErrorsTag extends TagSupport {
             }
             
             if (report.isResource()) {
-                message =
-                    TagUtils.getInstance().message(
+                MessageResources resources =
+                    TagUtils.getInstance().retrieveMessageResources(
                         pageContext,
                         bundle,
-                        locale,
+                        false);
+                Locale userLocale =
+                    TagUtils.getInstance().getUserLocale(pageContext, locale);
+                message =
+                    HtmlMessageFormatter.format(
+                        resources,
+                        userLocale,
                         report.getKey(),
                         report.getValues());
             } else {
-                message = report.getKey();
+                message = ResponseUtils.filter(report.getKey());
             }
                     
             if (message != null) {
-                results.append(ResponseUtils.filter(message));
+                results.append(message);
             }
             
             if (suffixPresent) {
