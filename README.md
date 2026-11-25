@@ -50,7 +50,7 @@ The jakarta JAR bundles Commons FileUpload 1.6.0, converted to `jakarta.servlet`
 Struts parses `web.xml`, `struts-config.xml`, Tiles definition files, the validation files of `ValidatorPlugIn`, and the files read by `DigestingPlugIn` (the data file, the digester rules file and every rules file it includes). A `DOCTYPE` declaration is allowed in all of them, and the following holds whether or not the parser validates:
 
 - An external DTD is read only from a local copy registered with `Digester.register()`, or from what an `EntityResolver` set on the `Digester` returns. Struts never falls back to opening a URI written in the document, including XInclude and XML Schema locations. A registration or a resolver is the application's explicit permission, and any I/O it does is the application's responsibility.
-- External entities are not expanded. A document that declares an external general entity, for example to split `struts-config.xml` into files with `&name;` references, fails to parse instead of being loaded with those parts left out.
+- External entities are not expanded. A document or DTD that declares an external entity, general or parameter, fails to parse instead of being loaded with parts left out; for example a `struts-config.xml` split into files with `&name;` references.
 - A document expands at most 10,000 entities, and an internal entity may be at most 5,000 characters long, so its expanded text is bounded on every parser. If the parser allows more expansions or none is set (for example `-Djdk.xml.entityExpansionLimit=0`), Struts lowers the limit for its own parsers; a lower limit is kept.
 - XInclude is turned off where the parser has it.
 - A fatal error stops parsing, even on a parser set to continue after fatal errors.

@@ -212,8 +212,8 @@ public class TestDigesterSecurity extends TestCase {
         assertNoConnection();
     }
 
-    public void testExternalParameterEntity_IsNotFetched() throws Exception {
-        parseIgnoringRejection(secureDigester(true), "<!DOCTYPE root [\n"
+    public void testExternalParameterEntity_IsRejectedWithoutConnection() throws Exception {
+        assertRejected(secureDigester(true), "<!DOCTYPE root [\n"
             + "  <!ENTITY % ext SYSTEM \"" + counter.url("/param.dtd") + "\">\n"
             + "  %ext;\n"
             + "]>\n<root/>");
@@ -584,16 +584,6 @@ public class TestDigesterSecurity extends TestCase {
             fail("a reader that cannot follow the policy must not be used");
         } catch (SAXException e) {
             // expected
-        }
-    }
-
-    /** Rejecting the document is acceptable; reading the entity is not. */
-    private static void parseIgnoringRejection(Digester digester, String xml)
-            throws IOException {
-        try {
-            digester.parse(stream(xml));
-        } catch (SAXException e) {
-            // either outcome is fine
         }
     }
 

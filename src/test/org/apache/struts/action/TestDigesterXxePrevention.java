@@ -107,7 +107,10 @@ public class TestDigesterXxePrevention extends TestCase {
             InputSource source = resolver.resolveEntity(
                 servlet.registrations[i], counter.url("/remote.dtd"));
             assertNotNull(servlet.registrations[i], source);
-            source.getByteStream().close();
+            // Commons Digester 1.6 returns the URL, 1.8 an open stream.
+            if (source.getByteStream() != null) {
+                source.getByteStream().close();
+            }
         }
         assertNoConnection();
     }

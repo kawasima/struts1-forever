@@ -275,6 +275,23 @@
                   <artifactId>xercesImpl</artifactId>
                   <version>2.12.2</version>
                 </artifactItem>
+                <!--
+                  The versions Struts 1.2.9 shipped, which applications may still
+                  have in WEB-INF/lib. TestOldCommonsLibraries runs the XML
+                  parsing tests with them in place of the declared versions.
+                -->
+                <artifactItem>
+                  <groupId>commons-digester</groupId>
+                  <artifactId>commons-digester</artifactId>
+                  <version>1.6</version>
+                  <outputDirectory>${project.build.directory}/test-libs</outputDirectory>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>commons-validator</groupId>
+                  <artifactId>commons-validator</artifactId>
+                  <version>1.1.4</version>
+                  <outputDirectory>${project.build.directory}/test-libs</outputDirectory>
+                </artifactItem>
               </artifactItems>
             </configuration>
           </execution>
@@ -365,6 +382,7 @@
           <failIfNoTests>true</failIfNoTests>
           <systemPropertyVariables>
             <struts.test.parsers>${project.build.directory}/test-parsers</struts.test.parsers>
+            <struts.test.libs>${project.build.directory}/test-libs</struts.test.libs>
           </systemPropertyVariables>
         </configuration>
       </plugin>

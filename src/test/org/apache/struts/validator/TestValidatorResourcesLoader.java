@@ -19,8 +19,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.TreeMap;
 
@@ -41,8 +43,10 @@ import org.xml.sax.SAXException;
 
 /**
  * {@link ValidatorResourcesLoader} loads validation files exactly as
- * <code>new ValidatorResources(InputStream[])</code> does, but cannot be made
- * to read an unregistered external resource.
+ * <code>new ValidatorResources(InputStream[])</code> of the Commons Validator
+ * on the class path does, but cannot be made to read an unregistered external
+ * resource. {@code TestOldCommonsLibraries} also runs it with Commons
+ * Validator 1.1.4.
  */
 public class TestValidatorResourcesLoader extends TestCase {
 
@@ -91,18 +95,41 @@ public class TestValidatorResourcesLoader extends TestCase {
         ValidatorResources actual = ValidatorResourcesLoader.load(streams());
 
         String description = describe(expected);
-        assertTrue(description.indexOf("name.label.fr") >= 0);
+        assertTrue(description.indexOf("name.label") >= 0);
         assertTrue(description.indexOf("^\\d{5}$") >= 0);
         assertEquals(description, describe(actual));
     }
 
-    /** An upgrade of Commons Validator that adds a DTD must update the loader. */
+    /**
+     * The loader registers a DTD exactly where Commons Validator does;
+     * otherwise Commons Validator would fetch a DTD the check allowed.
+     */
     public void testRegistrations_MatchCommonsValidator() throws Exception {
-        Field field = ValidatorResources.class.getDeclaredField("REGISTRATIONS");
+        Field field;
+        try {
+            field = ValidatorResources.class.getDeclaredField("REGISTRATIONS");
+        } catch (NoSuchFieldException e) {
+            field = ValidatorResources.class.getDeclaredField("registrations");
+        }
         field.setAccessible(true);
 
         assertEquals(Arrays.asList((String[]) field.get(null)),
-            Arrays.asList(ValidatorResourcesLoader.REGISTRATIONS));
+            shippedRegistrations());
+    }
+
+    /** Control: Commons Validator itself fetches an external parameter entity. */
+    public void testExternalParameterEntity_CommonsValidator_Fetches() throws Exception {
+        try {
+            new ValidatorResources(new InputStream[] {stream(externalParameterEntity())});
+        } catch (SAXException e) {
+            // the control only counts connections
+        }
+        assertEquals(connectionsBefore + 1, counter.getCount());
+    }
+
+    public void testExternalParameterEntity_IsRejectedWithoutConnection() throws Exception {
+        assertRejected(externalParameterEntity());
+        assertEquals(connectionsBefore, counter.getCount());
     }
 
     public void testUnregisteredDtd_IsRejectedWithoutConnection() throws Exception {
@@ -145,7 +172,34 @@ public class TestValidatorResourcesLoader extends TestCase {
         }
     }
 
+    private String externalParameterEntity() {
+        return "<!DOCTYPE form-validation [\n"
+            + "  <!ENTITY % ext SYSTEM \"" + counter.url("/param.dtd") + "\">\n"
+            + "  %ext;\n"
+            + "]>\n<form-validation/>";
+    }
+
+    /** The loader's registrations whose DTD this Commons Validator ships. */
+    private static List shippedRegistrations() {
+        List shipped = new ArrayList();
+        for (int i = 0; i < ValidatorResourcesLoader.REGISTRATIONS.length; i += 2) {
+            if (ValidatorResources.class.getResource(
+                    ValidatorResourcesLoader.REGISTRATIONS[i + 1]) != null) {
+                shipped.add(ValidatorResourcesLoader.REGISTRATIONS[i]);
+                shipped.add(ValidatorResourcesLoader.REGISTRATIONS[i + 1]);
+            }
+        }
+        return shipped;
+    }
+
+    /** The 1.2.0 file is left out where Commons Validator lacks that DTD. */
     private InputStream[] streams() throws IOException {
+        if (ValidatorResources.class.getResource(
+                "/org/apache/commons/validator/resources/validator_1_2_0.dtd") == null) {
+            return new InputStream[] {
+                getClass().getResourceAsStream(RULES), stream(OLD_STYLE)
+            };
+        }
         return new InputStream[] {
             getClass().getResourceAsStream(RULES), stream(OLD_STYLE), stream(NEW_STYLE)
         };

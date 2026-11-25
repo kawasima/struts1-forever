@@ -47,8 +47,8 @@ import org.xml.sax.ext.DeclHandler;
  *     registration or a resolver is the application's explicit permission,
  *     and any I/O it causes is the application's responsibility.</li>
  * <li>External entities are not expanded. A document or DTD that declares an
- *     external general entity fails to parse, so that a reference to it is
- *     not silently left out.</li>
+ *     external entity, general or parameter, fails to parse, so that a
+ *     reference to it is not silently left out.</li>
  * <li>A document expands to at most {@link #MAX_ENTITY_EXPANSIONS} entity
  *     expansions of at most {@link #MAX_ENTITY_LENGTH} characters each. The
  *     parser counts the expansions; its limit is lowered to
@@ -100,8 +100,14 @@ public final class DigesterSecurity {
     private static final String PROPERTY_XERCES_SECURITY_MANAGER =
         "http://apache.org/xml/properties/security-manager";
 
-    private static final String XERCES_SECURITY_MANAGER_CLASS =
-        "org.apache.xerces.util.SecurityManager";
+    /**
+     * Security manager classes of Apache Xerces and of the Xerces inside JDK
+     * 5 to 7, whose parser has no other expansion limit before 7u40.
+     */
+    private static final String[] XERCES_SECURITY_MANAGER_CLASSES = {
+        "org.apache.xerces.util.SecurityManager",
+        "com.sun.org.apache.xerces.internal.util.SecurityManager",
+    };
 
     private static final String FEATURE_XINCLUDE =
         "http://apache.org/xml/features/xinclude";
@@ -332,8 +338,10 @@ public final class DigesterSecurity {
     private static Object newXercesSecurityManager(XMLReader reader, Object previous) {
         try {
             Class managerClass = previous != null ? previous.getClass()
-                : Class.forName(XERCES_SECURITY_MANAGER_CLASS, true,
-                    reader.getClass().getClassLoader());
+                : xercesSecurityManagerClass(reader);
+            if (managerClass == null) {
+                return null;
+            }
             Object manager = managerClass.newInstance();
             if (previous != null) {
                 // Copied as values, without interpreting them, so each limit
@@ -350,6 +358,21 @@ public final class DigesterSecurity {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** @return the security manager class the reader's parser uses, or null */
+    private static Class xercesSecurityManagerClass(XMLReader reader) {
+        for (int i = 0; i < XERCES_SECURITY_MANAGER_CLASSES.length; i++) {
+            try {
+                return Class.forName(XERCES_SECURITY_MANAGER_CLASSES[i], true,
+                    reader.getClass().getClassLoader());
+            } catch (ClassNotFoundException e) {
+                // try the next one
+            } catch (LinkageError e) {
+                // try the next one
+            }
+        }
+        return null;
     }
 
     private static boolean sameLimitsExceptExpansion(Object previous, Object installed) {
@@ -404,7 +427,7 @@ public final class DigesterSecurity {
     private static final String SET_EXPANSION_LIMIT = "setEntityExpansionLimit";
 
     /**
-     * Install the handler that rejects external general entities and long
+     * Install the handler that rejects external entities and long
      * internal entities, and read it back.
      */
     private static void requireDeclarationGuard(XMLReader reader) throws SAXException {
@@ -498,7 +521,7 @@ public final class DigesterSecurity {
     }
 
     /**
-     * Fails on the declaration of an external general entity, and of an
+     * Fails on the declaration of an external entity, and of an
      * internal entity whose replacement text is longer than
      * {@link DigesterSecurity#MAX_ENTITY_LENGTH}. Each entity expansion then
      * produces at most that many characters itself, whichever entities it
@@ -515,14 +538,9 @@ public final class DigesterSecurity {
 
         public void externalEntityDecl(String name, String publicId, String systemId)
                 throws SAXException {
-            if (!name.startsWith("%")) {
-                throw new SAXException("External entity '" + name + "' (system ID: "
-                    + systemId + ") cannot be used because external entities are"
-                    + " not expanded. Put its content into the document instead.");
-            }
-            if (next != null) {
-                next.externalEntityDecl(name, publicId, systemId);
-            }
+            throw new SAXException("External entity '" + name + "' (system ID: "
+                + systemId + ") cannot be used because external entities are"
+                + " not expanded. Put its content into the document instead.");
         }
 
         public void internalEntityDecl(String name, String value) throws SAXException {
