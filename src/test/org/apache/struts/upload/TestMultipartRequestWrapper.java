@@ -254,8 +254,8 @@ public class TestMultipartRequestWrapper extends TestCase {
      * failure instead of throwing it.
      */
     private static final Set REFLECTED_METHODS = new HashSet(Arrays.asList(new String[] {
-        "isRequestedSessionIdFromCookie", "getRequestURL", "getLocalAddr", "getLocalName",
-        "getLocalPort", "getRemotePort"
+        "setCharacterEncoding", "isRequestedSessionIdFromCookie", "getRequestURL",
+        "getLocalAddr", "getLocalName", "getLocalPort", "getRemotePort"
     }));
 
     /** Methods that the servlet3 and jakarta builds answer differently. */
@@ -292,6 +292,8 @@ public class TestMultipartRequestWrapper extends TestCase {
         ReflectedRequest request = new ReflectedRequest();
         MultipartRequestWrapper w = new MultipartRequestWrapper(request);
 
+        w.setCharacterEncoding("UTF-8");
+        assertEquals("UTF-8", request.encoding);
         assertTrue(w.isRequestedSessionIdFromCookie());
         assertSame(request.url, w.getRequestURL());
         assertEquals("local-addr", w.getLocalAddr());
@@ -308,6 +310,8 @@ public class TestMultipartRequestWrapper extends TestCase {
         request.failure = new IllegalStateException();
         MultipartRequestWrapper w = new MultipartRequestWrapper(request);
 
+        w.setCharacterEncoding("UTF-8");
+        assertNull(request.encoding);
         assertFalse(w.isRequestedSessionIdFromCookie());
         assertNull(w.getRequestURL());
         assertNull(w.getLocalAddr());
@@ -319,6 +323,7 @@ public class TestMultipartRequestWrapper extends TestCase {
     /** Has the methods that the javax build calls through reflection. */
     public static class ReflectedRequest extends MockHttpServletRequest {
         final StringBuffer url = new StringBuffer("http://localhost/");
+        String encoding;
         RuntimeException failure;
 
         public ReflectedRequest() {
@@ -329,6 +334,11 @@ public class TestMultipartRequestWrapper extends TestCase {
             if (failure != null) {
                 throw failure;
             }
+        }
+
+        public void setCharacterEncoding(String encoding) {
+            check();
+            this.encoding = encoding;
         }
 
         public boolean isRequestedSessionIdFromCookie() {
@@ -411,20 +421,37 @@ public class TestMultipartRequestWrapper extends TestCase {
             assertSame(name, result, returned);
         }
 
-        RuntimeException failure = new IllegalStateException(name);
+        assertThrown(w, method, args, new IllegalStateException(name), recorder);
+        Class[] declared = method.getExceptionTypes();
+        for (int i = 0; i < declared.length; i++) {
+            Exception failure = (Exception) declared[i]
+                .getConstructor(new Class[] {String.class})
+                .newInstance(new Object[] {name});
+            if ("setCharacterEncoding".equals(method.getName())) {
+                // Logged instead of thrown, as in the javax build
+                recorder.failure = failure;
+                method.invoke(w, args);
+            } else {
+                assertThrown(w, method, args, failure, recorder);
+            }
+        }
+    }
+
+    private static void assertThrown(MultipartRequestWrapper w, Method method,
+            Object[] args, Exception failure, Recorder recorder) throws Exception {
         recorder.failure = failure;
         try {
             method.invoke(w, args);
-            fail(name + " did not throw");
+            fail(method + " did not throw " + failure);
         } catch (InvocationTargetException e) {
-            assertSame(name, failure, e.getTargetException());
+            assertSame(method.toString(), failure, e.getTargetException());
         }
     }
 
     /** Records the last call and answers it with a fixed result. */
     private static class Recorder implements InvocationHandler {
         private final Object result;
-        RuntimeException failure;
+        Exception failure;
         int calls;
         Method method;
         Object[] args;
@@ -433,7 +460,7 @@ public class TestMultipartRequestWrapper extends TestCase {
             this.result = result;
         }
 
-        public Object invoke(Object proxy, Method m, Object[] a) {
+        public Object invoke(Object proxy, Method m, Object[] a) throws Exception {
             calls++;
             method = m;
             args = (a == null) ? new Object[0] : a;
@@ -513,8 +540,9 @@ public class TestMultipartRequestWrapper extends TestCase {
     /** The JAR under test, set by the Maven build. */
     private static String build() {
         String build = System.getProperty("struts.build");
-        assertNotNull("system property struts.build is set by the Maven build;"
-            + " run this test with Maven", build);
+        assertTrue("system property struts.build is javax, servlet3 or jakarta,"
+            + " set by the Maven build; run this test with Maven: " + build,
+            "javax".equals(build) || "servlet3".equals(build) || "jakarta".equals(build));
         return build;
     }
 }

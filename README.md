@@ -30,7 +30,7 @@ The API compatibility check verifies that every class loads and that every Servl
 
 - It has no `protected request` field. Subclasses use `getRequest()` and `setRequest()`, which accepts only an `HttpServletRequest`.
 - `getRealPath(path)` returns `getServletContext().getRealPath(path)`, and `isRequestedSessionIdFromUrl()` returns `isRequestedSessionIdFromURL()`, instead of calling the method of the same name on the wrapped request. Servlet 6.0 removed both methods, and the jakarta JAR uses the same class.
-- Exceptions thrown by the wrapped request reach the caller. The default JAR logs an exception from `getRequestURL()`, `isRequestedSessionIdFromCookie()`, `getLocalAddr()`, `getLocalName()`, `getLocalPort()` or `getRemotePort()` and returns `null`, `false` or `0`.
+- Exceptions thrown by the wrapped request reach the caller, except that `setCharacterEncoding()` logs an `UnsupportedEncodingException` instead of throwing it, as the default JAR does. The default JAR logs any exception from `setCharacterEncoding()`, `getRequestURL()`, `isRequestedSessionIdFromCookie()`, `getLocalAddr()`, `getLocalName()`, `getLocalPort()` or `getRemotePort()` and returns `null`, `false` or `0`.
 
 The servlet3 JAR replaces the default JAR. Keep only one Struts JAR in `WEB-INF/lib`, and exclude `struts:struts` without classifier if another dependency brings it in. With two Struts JARs, the class loader decides which `MultipartRequestWrapper` is used; `ActionServlet` logs a warning at startup when it finds its own class in more than one location.
 

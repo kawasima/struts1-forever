@@ -1048,9 +1048,9 @@ public class ActionServlet extends HttpServlet {
 
 
     /**
-     * <p>Return the locations from which <code>loader</code> can load this
-     * class, separated by ", ", or <code>null</code> if there is at most
-     * one.</p>
+     * <p>Return the distinct locations from which <code>loader</code> can
+     * load this class, separated by ", ", or <code>null</code> if there is
+     * at most one or the class loader cannot be searched.</p>
      *
      * @param loader The class loader to search
      */
@@ -1059,21 +1059,33 @@ public class ActionServlet extends HttpServlet {
             return null;
         }
         String name = ActionServlet.class.getName().replace('.', '/') + ".class";
-        StringBuffer locations = new StringBuffer();
-        int count = 0;
+        List locations = new ArrayList();
         try {
             Enumeration urls = loader.getResources(name);
             while (urls.hasMoreElements()) {
-                if (count > 0) {
-                    locations.append(", ");
+                String location = urls.nextElement().toString();
+                if (!locations.contains(location)) {
+                    locations.add(location);
                 }
-                locations.append(urls.nextElement());
-                count++;
             }
         } catch (IOException e) {
+            log.debug("Unable to search for " + name, e);
+            return null;
+        } catch (RuntimeException e) {
+            log.debug("Unable to search for " + name, e);
             return null;
         }
-        return (count > 1) ? locations.toString() : null;
+        if (locations.size() < 2) {
+            return null;
+        }
+        StringBuffer result = new StringBuffer();
+        for (int i = 0; i < locations.size(); i++) {
+            if (i > 0) {
+                result.append(", ");
+            }
+            result.append(locations.get(i));
+        }
+        return result.toString();
     }
 
 

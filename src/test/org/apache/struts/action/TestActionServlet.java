@@ -165,6 +165,33 @@ public class TestActionServlet extends TestCase
             + ", jar:file:/app/WEB-INF/lib/struts-servlet3.jar!/" + name, locations);
     }
 
+    public void testDuplicateLocations_SameLocationTwice_ReturnsNull() throws Exception {
+        assertNull(ActionServlet.duplicateLocations(loader(new String[] {
+            "jar:file:/app/WEB-INF/lib/struts.jar!/",
+            "jar:file:/app/WEB-INF/lib/struts.jar!/"
+        })));
+    }
+
+    public void testDuplicateLocations_IOException_ReturnsNull() {
+        assertNull(ActionServlet.duplicateLocations(failingLoader(new IOException())));
+    }
+
+    public void testDuplicateLocations_SecurityException_ReturnsNull() {
+        assertNull(ActionServlet.duplicateLocations(failingLoader(new SecurityException())));
+    }
+
+    /** A class loader whose search for resources throws <code>failure</code>. */
+    private static ClassLoader failingLoader(final Exception failure) {
+        return new ClassLoader(null) {
+            protected Enumeration findResources(String name) throws IOException {
+                if (failure instanceof IOException) {
+                    throw (IOException) failure;
+                }
+                throw (RuntimeException) failure;
+            }
+        };
+    }
+
     /** A class loader that finds the resource under each of <code>roots</code>. */
     private static ClassLoader loader(final String[] roots) {
         return new ClassLoader(null) {
