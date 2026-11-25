@@ -4879,7 +4879,10 @@
             <info>
                 Set to <code>false</code> if you do NOT want the option label
                 and value filtered for sensitive characters in HTML.  By default,
-                such values are filtered.
+                <code>"</code>, <code>'</code>, <code>&lt;</code> and
+                <code>&gt;</code> are escaped. Character references such as
+                <code>&amp;nbsp;</code> are kept either way, because the label
+                and value are HTML.
             </info>
         </attribute>
 

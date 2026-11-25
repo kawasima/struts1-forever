@@ -203,6 +203,22 @@ public class TestOptionTag extends TestCase {
     }
 
     // ------------------------------------------------------------------
+    // Character references — the label and value are HTML (issue #4)
+    // ------------------------------------------------------------------
+
+    /** &nbsp; and &eacute; display as they did in 1.2.9-forever-2. */
+    public void testText_WithCharacterReferences_IsKept() throws Exception {
+        String output = runOptionTag("child", "&nbsp;&nbsp;Caf&eacute;");
+        assertTrue(output, output.contains(">&nbsp;&nbsp;Caf&eacute;</option>"));
+    }
+
+    /** The browser submits a&b, as it did in 1.2.9-forever-2. */
+    public void testValueAttribute_WithCharacterReference_IsKept() throws Exception {
+        String output = runOptionTag("a&amp;b", "Label");
+        assertTrue(output, output.contains("value=\"a&amp;b\""));
+    }
+
+    // ------------------------------------------------------------------
     // filter=false — backward compatibility
     // ------------------------------------------------------------------
 

@@ -85,7 +85,11 @@ public class OptionTag extends BodyTagSupport {
     }
 
     /**
-     * Should the label and value be filtered for HTML sensitive characters?
+     * Should <code>"</code>, <code>'</code>, <code>&lt;</code> and
+     * <code>&gt;</code> in the label and value be escaped? The label and value
+     * are HTML (body content, a message resource, or the value attribute), so
+     * character references such as <code>&amp;nbsp;</code> in them are kept
+     * either way; with <code>false</code> they are written exactly as given.
      */
     protected boolean filter = true;
 
@@ -249,7 +253,7 @@ public class OptionTag extends BodyTagSupport {
         StringBuffer results = new StringBuffer("<option value=\"");
         
         if (filter) {
-            results.append(TagUtils.getInstance().filter(this.value));
+            results.append(LegacyMarkup.escape(this.value));
         } else {
             results.append(this.value);
         }
@@ -279,7 +283,7 @@ public class OptionTag extends BodyTagSupport {
 
         String optionText = text();
         if (filter) {
-            results.append(TagUtils.getInstance().filter(optionText));
+            results.append(LegacyMarkup.escape(optionText));
         } else {
             results.append(optionText);
         }

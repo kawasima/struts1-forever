@@ -894,6 +894,14 @@ public abstract class BaseHandlerTag extends BodyTagSupport {
     /**
      * Prepares an attribute if the value is not null, appending it to the the given
      * StringBuffer.
+     *
+     * <p>The value is HTML, as it has always been: character references in it,
+     * such as the <code>&amp;amp;</code> between URL parameters, are written as
+     * they are. Only <code>"</code>, <code>'</code>, <code>&lt;</code> and
+     * <code>&gt;</code> are escaped, so that the value cannot end the attribute;
+     * the browser reads the same value. Escape data that is not HTML with
+     * <code>TagUtils.filter()</code> before passing it.</p>
+     *
      * @param handlers The StringBuffer that output will be appended to.
      */
     protected void prepareAttribute(StringBuffer handlers, String name, Object value) {
@@ -901,7 +909,7 @@ public abstract class BaseHandlerTag extends BodyTagSupport {
             handlers.append(" ");
             handlers.append(name);
             handlers.append("=\"");
-            handlers.append(TagUtils.getInstance().filter(value.toString()));
+            handlers.append(LegacyMarkup.escape(value.toString()));
             handlers.append("\"");
         }
     }
