@@ -15,11 +15,15 @@
  */
 package org.apache.struts.taglib.html;
 
+import java.util.Locale;
+
 import javax.servlet.jsp.JspException;
 import javax.servlet.jsp.PageContext;
+import javax.servlet.jsp.tagext.BodyContent;
 
 import junit.framework.TestCase;
 
+import org.apache.struts.Globals;
 import org.apache.struts.mock.MockHttpServletRequest;
 import org.apache.struts.mock.MockHttpServletResponse;
 import org.apache.struts.mock.MockHttpSession;
@@ -27,6 +31,8 @@ import org.apache.struts.mock.MockJspWriter;
 import org.apache.struts.mock.MockPageContext;
 import org.apache.struts.mock.MockServletConfig;
 import org.apache.struts.mock.MockServletContext;
+import org.apache.struts.taglib.bean.WriteTag;
+import org.apache.struts.util.MessageResources;
 
 /**
  * Tests for {@link OptionTag} HTML escaping (H-3 fix).
@@ -35,31 +41,12 @@ import org.apache.struts.mock.MockServletContext;
  * is escaped with {@link org.apache.struts.taglib.TagUtils#filter(String)} as
  * in {@code <html:options>}; the label, which is HTML, keeps its character
  * references and only {@code " ' < >} are escaped (issue #4).</p>
+ *
+ * <p>Body text is written into the body content that
+ * {@link MockPageContext#pushBody()} returns and read by
+ * {@code doAfterBody()}, as in a JSP container.</p>
  */
 public class TestOptionTag extends TestCase {
-
-    /**
-     * Test subclass that allows injecting body text directly, bypassing the
-     * {@code doAfterBody()} body-content lifecycle. This is necessary because
-     * {@code OptionTag.doStartTag()} resets {@code text = null} and the real
-     * body-content mechanism requires a full JSP container.
-     *
-     * <p>{@code doStartTag()} is overridden to populate {@code this.text}
-     * from the injected value, mirroring what {@code doAfterBody()} does in a
-     * real container after the body is evaluated.</p>
-     */
-    private static class InjectableOptionTag extends OptionTag {
-        private String injectedText = null;
-
-        public void setBodyText(String t) {
-            this.injectedText = t;
-        }
-
-        public int doStartTag() throws JspException {
-            this.text = injectedText;
-            return EVAL_BODY_TAG;
-        }
-    }
 
     private MockServletContext context;
     private MockServletConfig config;
@@ -81,8 +68,7 @@ public class TestOptionTag extends TestCase {
     }
 
     // ------------------------------------------------------------------
-    // Helper: register a minimal SelectTag stub in page context so
-    // OptionTag.selectTag() does not throw, then run OptionTag.
+    // Helpers
     // ------------------------------------------------------------------
 
     /**
@@ -99,36 +85,112 @@ public class TestOptionTag extends TestCase {
         return select;
     }
 
+    /** Writes part of the body of a tag, as the JSP page would. */
+    private interface Body {
+        void write() throws Exception;
+    }
+
+    /** A body that consists of the given template text. */
+    private Body text(final String text) {
+        return new Body() {
+            public void write() throws Exception {
+                pageContext.getOut().print(text);
+            }
+        };
+    }
+
     /**
-     * Runs OptionTag with the given value and optional body text,
-     * returns captured output.
-     *
-     * <p>When {@code text} is non-null, an {@link InjectableOptionTag} is
-     * used so that body text can be injected without a real JSP container.
-     * When {@code text} is null, a plain {@link OptionTag} is used to
-     * exercise the value-as-label fallback path.</p>
+     * Runs the tag lifecycle as a JSP container does for a tag that
+     * returns {@code EVAL_BODY_TAG}; a {@code null} body is an empty tag.
+     */
+    private void evaluate(OptionTag tag, Body body) throws Exception {
+        assertEquals(OptionTag.EVAL_BODY_TAG, tag.doStartTag());
+        if (body != null) {
+            BodyContent content = pageContext.pushBody();
+            tag.setBodyContent(content);
+            tag.doInitBody();
+            body.write();
+            tag.doAfterBody();
+            pageContext.popBody();
+        }
+        tag.doEndTag();
+    }
+
+    /**
+     * Runs OptionTag with the given value and optional body text and
+     * returns the captured output.
      */
     private String runOptionTag(String value, String text) throws Exception {
         stubSelectTag();
+        OptionTag tag = new OptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue(value);
+        evaluate(tag, text == null ? null : text(text));
+        return out.getContent();
+    }
+
+    private String runOptionTagSelecting(String value, String selected) throws Exception {
+        stubSelectTag().match = new String[] {selected};
         out = new MockJspWriter();
         pageContext.setJspWriter(out);
+        OptionTag tag = new OptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue(value);
+        evaluate(tag, text("Label"));
+        return out.getContent();
+    }
 
-        if (text != null) {
-            InjectableOptionTag tag = new InjectableOptionTag();
-            tag.setPageContext(pageContext);
-            tag.setValue(value);
-            tag.setBodyText(text);
-            tag.doStartTag();
-            tag.doEndTag();
-        } else {
-            OptionTag tag = new OptionTag();
-            tag.setPageContext(pageContext);
-            tag.setValue(value);
-            tag.doStartTag();
-            tag.doEndTag();
+    /**
+     * The label of the option element as the browser reads it. The start
+     * tag ends at the first {@code >} outside a quoted attribute value, and
+     * the text ends at the next {@code <}, which must start
+     * {@code </option>}: a label that starts an element fails here instead
+     * of being decoded.
+     */
+    private static String label(String html) {
+        int start = html.indexOf("<option");
+        assertTrue(html, start >= 0);
+        boolean quoted = false;
+        int i = start;
+        while (i < html.length() && (quoted || html.charAt(i) != '>')) {
+            if (html.charAt(i) == '"') {
+                quoted = !quoted;
+            }
+            i++;
+        }
+        assertTrue("unterminated start tag: " + html, i < html.length());
+        int textStart = i + 1;
+        int textEnd = html.indexOf('<', textStart);
+        assertTrue(html, textEnd >= 0);
+        assertTrue("label starts markup: " + html,
+                html.startsWith("</option>", textEnd));
+        return TestAttributeValueEncoding.decode(html.substring(textStart, textEnd));
+    }
+
+    /** Returns the same message for every key. */
+    private static class FixedMessageResources extends MessageResources {
+        private final String message;
+
+        FixedMessageResources(String message) {
+            super(null, null);
+            this.message = message;
         }
 
-        return out.getContent();
+        public String getMessage(Locale locale, String key) {
+            return message;
+        }
+    }
+
+    private OptionTag optionTagWithKey(String value, String message) {
+        pageContext.setAttribute(Globals.MESSAGES_KEY,
+                new FixedMessageResources(message),
+                PageContext.REQUEST_SCOPE);
+        stubSelectTag();
+        OptionTag tag = new OptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue(value);
+        tag.setKey("typeForm.option.select.one");
+        return tag;
     }
 
     // ------------------------------------------------------------------
@@ -149,6 +211,29 @@ public class TestOptionTag extends TestCase {
                 output.contains(">myval<"));
     }
 
+    /** Surrounding white space of the body is not part of the label. */
+    public void testText_IsTrimmed() throws Exception {
+        assertEquals("Label", label(runOptionTag("v", "\n  Label\n")));
+    }
+
+    /** A body of white space only shows the value, as an empty tag does. */
+    public void testText_OnlyWhiteSpace_ShowsTheValue() throws Exception {
+        assertEquals("v", label(runOptionTag("v", " \n ")));
+    }
+
+    /** The body of one use of a tag instance does not show in the next. */
+    public void testText_IsNotReusedByTheNextEvaluation() throws Exception {
+        stubSelectTag();
+        OptionTag tag = new OptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue("v");
+        evaluate(tag, text("First"));
+        out = new MockJspWriter();
+        pageContext.setJspWriter(out);
+        evaluate(tag, null);
+        assertEquals("v", label(out.getContent()));
+    }
+
     // ------------------------------------------------------------------
     // value attribute — must be HTML-escaped (H-3)
     // ------------------------------------------------------------------
@@ -159,10 +244,8 @@ public class TestOptionTag extends TestCase {
      */
     public void testValueAttribute_EscapesDoubleQuote() throws Exception {
         String output = runOptionTag("a\"b", "Label");
-        assertFalse("Raw double-quote in value attribute enables attribute injection (H-3)",
-            output.contains("value=\"a\"b\""));
-        assertTrue("value must contain &quot; instead of raw \"",
-            output.contains("&quot;"));
+        assertEquals("a\"b", TestAttributeValueEncoding.attribute(output, "value"));
+        assertEquals("Label", label(output));
     }
 
     /**
@@ -185,10 +268,7 @@ public class TestOptionTag extends TestCase {
      */
     public void testText_EscapesScriptTag() throws Exception {
         String output = runOptionTag("v", "<script>alert(1)</script>");
-        assertFalse("Raw <script> in option text must be escaped (H-3)",
-            output.contains("<script>alert(1)</script>"));
-        assertTrue("&lt;script&gt; must appear in option text",
-            output.contains("&lt;script&gt;"));
+        assertEquals("<script>alert(1)</script>", label(output));
     }
 
     /**
@@ -202,13 +282,65 @@ public class TestOptionTag extends TestCase {
     }
 
     // ------------------------------------------------------------------
-    // Character references — HTML labels and data values (issue #4)
+    // Character references — HTML labels and data values (issues #4, #5)
     // ------------------------------------------------------------------
 
     /** &nbsp; and &eacute; display as they did in 1.2.9-forever-2. */
     public void testText_WithCharacterReferences_IsKept() throws Exception {
         String output = runOptionTag("child", "&nbsp;&nbsp;Caf&eacute;");
         assertTrue(output, output.contains(">&nbsp;&nbsp;Caf&eacute;</option>"));
+    }
+
+    /** A blank option written as {@code &nbsp;} stays blank. */
+    public void testText_BlankOptionWithNbsp_IsKept() throws Exception {
+        String output = runOptionTag("", "&nbsp;");
+        assertTrue(output, output.contains(">&nbsp;</option>"));
+    }
+
+    /**
+     * {@code <bean:write>} nested in the body escapes its output, and the
+     * option shows that output as {@code <bean:write>} alone would.
+     */
+    public void testText_FromNestedWriteTag_IsEscapedOnce() throws Exception {
+        pageContext.setAttribute("member", "Tom & Jerry <TJ>",
+                PageContext.PAGE_SCOPE);
+        stubSelectTag();
+        OptionTag tag = new OptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue("1");
+
+        evaluate(tag, new Body() {
+            public void write() throws Exception {
+                WriteTag write = new WriteTag();
+                write.setPageContext(pageContext);
+                write.setName("member");
+                write.doStartTag();
+                write.doEndTag();
+            }
+        });
+
+        String output = out.getContent();
+        assertTrue(output,
+                output.contains(">Tom &amp; Jerry &lt;TJ&gt;</option>"));
+        assertEquals("Tom & Jerry <TJ>", label(output));
+    }
+
+    /**
+     * Message resources hold HTML because {@code <bean:message>} writes them
+     * as given, so a label looked up by key keeps its character references.
+     */
+    public void testLabel_FromKey_KeepsCharacterReferences() throws Exception {
+        OptionTag tag = optionTagWithKey("", "&lt;Select One&gt;&nbsp;");
+        evaluate(tag, null);
+        assertTrue(out.getContent(),
+                out.getContent().contains(">&lt;Select One&gt;&nbsp;</option>"));
+    }
+
+    /** A message looked up by key cannot add elements to the page. */
+    public void testLabel_FromKey_EscapesMarkup() throws Exception {
+        OptionTag tag = optionTagWithKey("v", "</select><script>x()</script>");
+        evaluate(tag, null);
+        assertEquals("</select><script>x()</script>", label(out.getContent()));
     }
 
     /**
@@ -231,8 +363,10 @@ public class TestOptionTag extends TestCase {
      * still data, so the label shows exactly what the browser submits.
      */
     public void testLabel_WithoutTextOrKey_ShowsTheValueAsGiven() throws Exception {
-        String[] values = {"A&B", "A&amp;B", "&copy;", "&#65;"};
+        String[] values = {"A&B", "A&amp;B", "&copy;", "&#65;", "</option><b>"};
         for (int i = 0; i < values.length; i++) {
+            out = new MockJspWriter();
+            pageContext.setJspWriter(out);
             String output = runOptionTag(values[i], null);
             assertEquals(values[i], TestAttributeValueEncoding.attribute(output, "value"));
             assertEquals(values[i], label(output));
@@ -272,29 +406,6 @@ public class TestOptionTag extends TestCase {
         assertEquals("A&amp;B", label(tag.renderOptionElement()));
     }
 
-    /** The label of the option element, decoded as the browser reads it. */
-    private static String label(String html) {
-        int start = html.indexOf('>') + 1;
-        int end = html.indexOf("</option>");
-        assertTrue(html, start > 0 && end >= start);
-        return TestAttributeValueEncoding.decode(html.substring(start, end));
-    }
-
-    private String runOptionTagSelecting(String value, String selected) throws Exception {
-        stubSelectTag().match = new String[] {selected};
-        out = new MockJspWriter();
-        pageContext.setJspWriter(out);
-
-        InjectableOptionTag tag = new InjectableOptionTag();
-        tag.setPageContext(pageContext);
-        tag.setValue(value);
-        tag.setBodyText("Label");
-        tag.doStartTag();
-        tag.doEndTag();
-
-        return out.getContent();
-    }
-
     // ------------------------------------------------------------------
     // filter=false — backward compatibility
     // ------------------------------------------------------------------
@@ -305,16 +416,11 @@ public class TestOptionTag extends TestCase {
      */
     public void testOption_FilterFalse_NoEscaping() throws Exception {
         stubSelectTag();
-        out = new MockJspWriter();
-        pageContext.setJspWriter(out);
-
-        InjectableOptionTag tag = new InjectableOptionTag();
+        OptionTag tag = new OptionTag();
         tag.setPageContext(pageContext);
         tag.setValue("a\"b");
-        tag.setBodyText("<b>bold</b>");
         tag.setFilter(false);
-        tag.doStartTag();
-        tag.doEndTag();
+        evaluate(tag, text("<b>bold</b>"));
 
         String output = out.getContent();
         assertTrue("With filter=false, raw double-quote must appear",

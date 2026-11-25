@@ -301,9 +301,15 @@ public class MockPageContext extends PageContext {
     }
 
 
+    /**
+     * Start a body as a JSP container does: the returned body content
+     * becomes the writer of this page until {@link #popBody()}.
+     */
     public BodyContent pushBody() {
         writerStack.push(out);
-        return null;
+        MockBodyContent body = new MockBodyContent(out);
+        out = body;
+        return body;
     }
 
 
