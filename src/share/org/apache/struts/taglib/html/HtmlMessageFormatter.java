@@ -38,6 +38,28 @@ import org.apache.struts.util.ResponseUtils;
  * implementation, including a subclass of {@code PropertyMessageResources},
  * may format messages differently, so its formatted message is escaped as a
  * whole, as in 1.2.9-forever-2.</p>
+ *
+ * <p>The cached {@code MessageFormat} and the protected members of
+ * {@code MessageResources} cannot be reached from this package without
+ * adding public API, so this class builds its own {@code MessageFormat} the
+ * way {@code MessageResources.getMessage(Locale, String, Object[])} does.
+ * The output differs from that method only in these cases:</p>
+ * <ul>
+ * <li>The pattern is parsed on every call. {@code MessageResources} parses
+ *     it once per locale and key and keeps it, so a change to the JVM
+ *     default locale or time zone, or to {@code setEscape()}, after the
+ *     first call is seen here and not there.</li>
+ * <li>A <code>null</code> locale is replaced with the current
+ *     {@code Locale.getDefault()}, not the default locale saved when the
+ *     resources were created. {@code ErrorsTag} passes the request locale,
+ *     which a container does not leave <code>null</code>.</li>
+ * <li>A template that starts and ends with "???" is taken for a missing
+ *     key by {@code isPresent()} and escaped whole.</li>
+ * </ul>
+ * <p>If this class is shared with another tag (for example to escape the
+ * arguments of {@code <bean:message>}), move it next to
+ * {@code MessageResources} so it can use the cached format instead of
+ * copying it.</p>
  */
 final class HtmlMessageFormatter {
 

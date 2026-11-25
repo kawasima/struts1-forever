@@ -137,6 +137,16 @@ public class TestHtmlMessageFormatter extends TestCase {
                 noNull, Locale.ENGLISH, "<x>", new Object[] {"a"}));
     }
 
+    /**
+     * isPresent() takes a message that starts and ends with "???" for a
+     * missing key, so such a template is escaped whole. This is accepted:
+     * the error goes toward more escaping, never less.
+     */
+    public void testTemplateLookingLikeMissingKey_IsEscapedWhole() {
+        assertEquals("???&lt;strong&gt;x&lt;/strong&gt;???",
+                format("ambiguous", new Object[] {"x"}));
+    }
+
     /** returnNull is true by default in MessageResourcesFactory. */
     public void testMissingKey_ReturnNullTrue_ReturnsNull() {
         assertNull(format("missing", null));
