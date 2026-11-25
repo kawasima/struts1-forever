@@ -898,9 +898,10 @@ public abstract class BaseHandlerTag extends BodyTagSupport {
      * <p>The value is HTML, as it has always been: character references in it,
      * such as the <code>&amp;amp;</code> between URL parameters, are written as
      * they are. Only <code>"</code>, <code>'</code>, <code>&lt;</code> and
-     * <code>&gt;</code> are escaped, so that the value cannot end the attribute;
-     * the browser reads the same value. Escape data that is not HTML with
-     * <code>TagUtils.filter()</code> before passing it.</p>
+     * <code>&gt;</code> are escaped, so that the value cannot end the attribute.
+     * Escape data that is not HTML, such as a value that is submitted and
+     * compared with a form property, with <code>TagUtils.filter()</code> before
+     * passing it.</p>
      *
      * @param handlers The StringBuffer that output will be appended to.
      */

@@ -125,7 +125,9 @@ public class CheckboxTag extends BaseHandlerTag {
         prepareAttribute(results, "accesskey", getAccesskey());
         prepareAttribute(results, "tabindex", getTabindex());
 
-        prepareAttribute(results, "value", getValue());
+        // The value is data: the browser submits it and isChecked() compares
+        // it with the form property.
+        prepareAttribute(results, "value", TagUtils.getInstance().filter(getValue()));
         if (isChecked()) {
             results.append(" checked=\"checked\"");
         }

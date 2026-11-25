@@ -85,11 +85,15 @@ public class OptionTag extends BodyTagSupport {
     }
 
     /**
-     * Should <code>"</code>, <code>'</code>, <code>&lt;</code> and
-     * <code>&gt;</code> in the label and value be escaped? The label and value
-     * are HTML (body content, a message resource, or the value attribute), so
-     * character references such as <code>&amp;nbsp;</code> in them are kept
-     * either way; with <code>false</code> they are written exactly as given.
+     * Should the label and value be escaped for HTML? The value is data: the
+     * browser submits it and {@link SelectTag#isMatched} compares it with the
+     * form property, so it is escaped completely, as
+     * <code>&lt;html:options&gt;</code> escapes its values. The label is HTML
+     * (body content or a message resource), so character references such as
+     * <code>&amp;nbsp;</code> in it are kept and only <code>"</code>,
+     * <code>'</code>, <code>&lt;</code> and <code>&gt;</code> are escaped;
+     * the labels of <code>&lt;html:options&gt;</code> come from beans and are
+     * escaped completely. With <code>false</code> both are written as given.
      */
     protected boolean filter = true;
 
@@ -253,7 +257,7 @@ public class OptionTag extends BodyTagSupport {
         StringBuffer results = new StringBuffer("<option value=\"");
         
         if (filter) {
-            results.append(LegacyMarkup.escape(this.value));
+            results.append(TagUtils.getInstance().filter(this.value));
         } else {
             results.append(this.value);
         }

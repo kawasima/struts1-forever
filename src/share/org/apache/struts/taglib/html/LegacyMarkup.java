@@ -18,11 +18,11 @@ package org.apache.struts.taglib.html;
 /**
  * <p>Escapes HTML that a page author, a message resource or Struts itself
  * wrote, so that it cannot close the attribute or open an element it is
- * written into, while the browser still reads the same value.</p>
+ * written into, while character references in it keep their meaning.</p>
  *
  * <p>Attribute values given to {@link BaseHandlerTag#prepareAttribute} and
- * the value and text of <code>&lt;html:option&gt;</code> have always been
- * written out as given: they are HTML, not data. A character reference in
+ * the label of <code>&lt;html:option&gt;</code> have always been written out
+ * as given: they are HTML, not data. A character reference in
  * them, such as <code>&amp;nbsp;</code>, is meant to be read by the browser,
  * and Struts itself separates URL parameters with <code>&amp;amp;</code>.
  * Escaping <code>&amp;</code> again would change what the browser reads.
@@ -30,10 +30,11 @@ package org.apache.struts.taglib.html;
  * <code>&gt;</code>; the browser decodes each of them back to the same
  * character, so the value it reads does not change.</p>
  *
- * <p>Data that is not HTML, such as a bean property, is escaped with
- * <code>TagUtils.filter()</code>, which escapes <code>&amp;</code> as
- * well. Neither makes a value safe inside a script, a URL or a style: they
- * only keep it from breaking the markup around it.</p>
+ * <p>This is not an encoder for data: a bean property or a submitted value
+ * is escaped with <code>TagUtils.filter()</code>, which escapes
+ * <code>&amp;</code> as well. A raw <code>&amp;</code> is left as it is, so
+ * the result is not well-formed XHTML unless the input was. Neither escaping
+ * makes a value safe inside a script, a URL or a style.</p>
  */
 final class LegacyMarkup {
 

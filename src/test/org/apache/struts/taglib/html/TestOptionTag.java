@@ -31,11 +31,10 @@ import org.apache.struts.mock.MockServletContext;
 /**
  * Tests for {@link OptionTag} HTML escaping (H-3 fix).
  *
- * <p>Verifies that {@code OptionTag} escapes the {@code value} attribute
- * and text content via {@link org.apache.struts.taglib.TagUtils#filter(String)}
- * when the {@code filter} attribute is {@code true} (the default),
- * matching the behavior of {@code <html:options>} and
- * {@code <html:optionsCollection>}.</p>
+ * <p>With {@code filter} {@code true} (the default) the value, which is data,
+ * is escaped with {@link org.apache.struts.taglib.TagUtils#filter(String)} as
+ * in {@code <html:options>}; the label, which is HTML, keeps its character
+ * references and only {@code " ' < >} are escaped (issue #4).</p>
  */
 public class TestOptionTag extends TestCase {
 
@@ -212,10 +211,34 @@ public class TestOptionTag extends TestCase {
         assertTrue(output, output.contains(">&nbsp;&nbsp;Caf&eacute;</option>"));
     }
 
-    /** The browser submits a&b, as it did in 1.2.9-forever-2. */
-    public void testValueAttribute_WithCharacterReference_IsKept() throws Exception {
-        String output = runOptionTag("a&amp;b", "Label");
-        assertTrue(output, output.contains("value=\"a&amp;b\""));
+    /**
+     * The value is data: the browser submits exactly the value, and the option
+     * that the submitted value matches is selected when the form is shown
+     * again.
+     */
+    public void testValue_IsSubmittedAsGivenAndSelectedWhenMatched() throws Exception {
+        String output = runOptionTagSelecting("a&b", "a&b");
+        assertEquals("a&b", TestAttributeValueEncoding.attribute(output, "value"));
+        assertTrue(output, output.contains("selected=\"selected\""));
+
+        output = runOptionTagSelecting("a&amp;b", "a&amp;b");
+        assertEquals("a&amp;b", TestAttributeValueEncoding.attribute(output, "value"));
+        assertTrue(output, output.contains("selected=\"selected\""));
+    }
+
+    private String runOptionTagSelecting(String value, String selected) throws Exception {
+        stubSelectTag().match = new String[] {selected};
+        out = new MockJspWriter();
+        pageContext.setJspWriter(out);
+
+        InjectableOptionTag tag = new InjectableOptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue(value);
+        tag.setBodyText("Label");
+        tag.doStartTag();
+        tag.doEndTag();
+
+        return out.getContent();
     }
 
     // ------------------------------------------------------------------
