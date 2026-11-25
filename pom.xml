@@ -364,6 +364,10 @@
                   <directory>src/test</directory>
                   <includes>
                     <include>**/*.xml</include>
+                    <!-- Only Test*.properties: src/test also holds an old
+                         taglib/LocalStrings.properties that would shadow
+                         the one in src/share. -->
+                    <include>**/Test*.properties</include>
                   </includes>
                 </resource>
               </resources>

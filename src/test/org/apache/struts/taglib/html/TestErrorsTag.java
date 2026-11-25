@@ -183,6 +183,30 @@ public class TestErrorsTag extends TestCase {
     }
 
     // ------------------------------------------------------------------
+    // Resource message — template is HTML, arguments are escaped (#6)
+    // ------------------------------------------------------------------
+
+    /**
+     * Markup written in the message resources is rendered as HTML, as in
+     * 1.2.9-forever-1; the argument is escaped, as in 1.2.9-forever-2.
+     */
+    public void testResourceMessage_KeepsTemplateMarkup_EscapesArgument()
+            throws Exception {
+        context.setAttribute(Globals.MESSAGES_KEY,
+                MessageResources.getMessageResources(
+                        "org.apache.struts.taglib.html.TestErrorsTagMessages"));
+        ActionMessages messages = new ActionMessages();
+        messages.add(ActionMessages.GLOBAL_MESSAGE,
+                new ActionMessage("login.failed", "<script>alert(1)</script>"));
+
+        String output = runErrorsTag(messages);
+
+        assertEquals(
+                "Login failed for user <strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong>.",
+                output);
+    }
+
+    // ------------------------------------------------------------------
     // Return value
     // ------------------------------------------------------------------
 
