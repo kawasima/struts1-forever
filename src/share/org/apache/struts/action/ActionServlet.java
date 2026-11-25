@@ -324,6 +324,7 @@ public class ActionServlet extends HttpServlet {
         // to the developer
         try {
             initInternal();
+            checkLocations();
             initOther();
             initServlet();
 
@@ -1029,6 +1030,62 @@ public class ActionServlet extends HttpServlet {
         }
 
         return validating;
+    }
+
+
+    /**
+     * <p>Log a warning if this class can be loaded from more than one
+     * location, such as two Struts JARs in <code>/WEB-INF/lib</code>.
+     * Which copy of each Struts class is used is then up to the class
+     * loader.</p>
+     */
+    private void checkLocations() {
+        String locations = duplicateLocations(ActionServlet.class.getClassLoader());
+        if (locations != null) {
+            log.warn("Struts classes found in more than one location: " + locations);
+        }
+    }
+
+
+    /**
+     * <p>Return the distinct locations from which <code>loader</code> can
+     * load this class, separated by ", ", or <code>null</code> if there is
+     * at most one or the class loader cannot be searched.</p>
+     *
+     * @param loader The class loader to search
+     */
+    static String duplicateLocations(ClassLoader loader) {
+        if (loader == null) {
+            return null;
+        }
+        String name = ActionServlet.class.getName().replace('.', '/') + ".class";
+        List locations = new ArrayList();
+        try {
+            Enumeration urls = loader.getResources(name);
+            while (urls.hasMoreElements()) {
+                String location = urls.nextElement().toString();
+                if (!locations.contains(location)) {
+                    locations.add(location);
+                }
+            }
+        } catch (IOException e) {
+            log.debug("Unable to search for " + name, e);
+            return null;
+        } catch (RuntimeException e) {
+            log.debug("Unable to search for " + name, e);
+            return null;
+        }
+        if (locations.size() < 2) {
+            return null;
+        }
+        StringBuffer result = new StringBuffer();
+        for (int i = 0; i < locations.size(); i++) {
+            if (i > 0) {
+                result.append(", ");
+            }
+            result.append(locations.get(i));
+        }
+        return result.toString();
     }
 
 

@@ -27,11 +27,11 @@ import java.util.Vector;
  * How {@link MultipartRequestWrapper} combines the parameters of the wrapped
  * request with the ones parsed from the multipart body.
  *
- * <p>The javax and the jakarta <code>MultipartRequestWrapper</code> delegate
- * to the wrapped request in different ways, but must merge parameters in
- * exactly the same way. Both call these methods, which take no Servlet API
- * types so that they compile unchanged against either API. They keep no
- * state: the multipart parameters stay in the wrapper's protected
+ * <p>The Servlet 2.2 and the Servlet 3.0 <code>MultipartRequestWrapper</code>
+ * delegate to the wrapped request in different ways, but must merge
+ * parameters in exactly the same way. Both call these methods, which take no
+ * Servlet API types so that they compile unchanged against either API. They
+ * keep no state: the multipart parameters stay in the wrapper's protected
  * <code>parameters</code> map.</p>
  */
 final class MultipartParameters {

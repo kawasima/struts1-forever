@@ -387,6 +387,8 @@
           <systemPropertyVariables>
             <struts.test.parsers>${project.build.directory}/test-parsers</struts.test.parsers>
             <struts.test.libs>${project.build.directory}/test-libs</struts.test.libs>
+            <!-- The JAR whose classes are tested: javax, servlet3 or jakarta. -->
+            <struts.build>javax</struts.build>
           </systemPropertyVariables>
         </configuration>
       </plugin>
@@ -465,25 +467,32 @@
       </build>
     </profile>
     <!--
-      Jakarta EE 9+ variant, published as the "jakarta" classifier.
+      Servlet 3.0+ and Jakarta EE 9+ variants, published as the "servlet3"
+      and "jakarta" classifiers.
 
-      The sources stay on javax.servlet. The jakarta JAR is assembled from
-      the compiled classes in three steps that start from empty directories
-      on every build:
+      The sources stay on javax.servlet. Both JARs are assembled from the
+      compiled classes in three steps that start from empty directories on
+      every build:
 
-        process-classes       src/jakarta (classes that must differ in the
-                              jakarta JAR) is compiled against Jakarta
-                              Servlet 5.0 into target/jakarta-overlay-classes.
-        process-test-classes  target/classes, the overlay classes and the
-                              unpacked commons-fileupload 1.x classes are
-                              copied into target/jakarta-classes, the test
-                              classes into target/jakarta-test-classes, and
-                              Eclipse Transformer rewrites both in place.
-        test                  The transformed test suite runs again against
-                              Jakarta Servlet 6.0 / JSP 3.1.
+        process-classes       src/servlet3 (classes that replace their
+                              Servlet 2.2 counterpart) is compiled against
+                              Servlet 3.0 into target/servlet3-overlay-classes.
+                              Ant's javac is used so that Servlet 3.0 comes
+                              before Servlet 2.2 on the class path.
+        process-test-classes  target/classes and the overlay classes are
+                              copied into target/servlet3-classes. They are
+                              also copied, with the unpacked commons-fileupload
+                              1.x classes, into target/jakarta-classes, the
+                              test classes into target/jakarta-test-classes,
+                              and Eclipse Transformer rewrites both in place.
+        test                  The test suite runs again against the servlet3
+                              classes on Servlet 4.0 / JSP 2.3, and against
+                              the transformed classes on Jakarta Servlet 6.0 /
+                              JSP 3.1.
 
-      The JAR is packaged in "package", and src/it/jakarta-tomcat deploys it
-      to Tomcat 10.1 in "integration-test" (maven-invoker-plugin).
+      The JARs are packaged in "package". In "integration-test"
+      (maven-invoker-plugin), src/it/servlet3-tomcat deploys the servlet3 JAR
+      to Tomcat 9.0 and src/it/jakarta-tomcat the jakarta JAR to Tomcat 10.1.
 
       commons-fileupload is bundled under its original package name (not
       relocated) because CommonsMultipartRequestHandler exposes FileItem in
@@ -499,20 +508,13 @@
       </activation>
       <properties>
         <maven.test.skip>false</maven.test.skip>
-        <jakarta.overlay-classes>${project.build.directory}/jakarta-overlay-classes</jakarta.overlay-classes>
+        <servlet3.overlay-classes>${project.build.directory}/servlet3-overlay-classes</servlet3.overlay-classes>
+        <servlet3.classes>${project.build.directory}/servlet3-classes</servlet3.classes>
+        <servlet3.test-api>${project.build.directory}/servlet3-test-api</servlet3.test-api>
         <jakarta.classes>${project.build.directory}/jakarta-classes</jakarta.classes>
         <jakarta.test-classes>${project.build.directory}/jakarta-test-classes</jakarta.test-classes>
         <jakarta.test-api>${project.build.directory}/jakarta-test-api</jakarta.test-api>
       </properties>
-      <dependencies>
-        <!-- Compile the overlay against the oldest supported API. -->
-        <dependency>
-          <groupId>jakarta.servlet</groupId>
-          <artifactId>jakarta.servlet-api</artifactId>
-          <version>5.0.0</version>
-          <scope>provided</scope>
-        </dependency>
-      </dependencies>
       <build>
         <plugins>
           <plugin>
@@ -527,7 +529,9 @@
                 <configuration>
                   <excludeDefaultDirectories>true</excludeDefaultDirectories>
                   <filesets>
-                    <fileset><directory>${jakarta.overlay-classes}</directory></fileset>
+                    <fileset><directory>${servlet3.overlay-classes}</directory></fileset>
+                    <fileset><directory>${servlet3.classes}</directory></fileset>
+                    <fileset><directory>${servlet3.test-api}</directory></fileset>
                     <fileset><directory>${jakarta.classes}</directory></fileset>
                     <fileset><directory>${jakarta.test-classes}</directory></fileset>
                     <fileset><directory>${jakarta.test-api}</directory></fileset>
@@ -538,18 +542,33 @@
           </plugin>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.13.0</version>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <version>3.1.0</version>
+            <dependencies>
+              <!-- The API the overlay is compiled against, through maven.plugin.classpath. -->
+              <dependency>
+                <groupId>javax.servlet</groupId>
+                <artifactId>javax.servlet-api</artifactId>
+                <version>3.0.1</version>
+              </dependency>
+            </dependencies>
             <executions>
               <execution>
-                <id>jakarta-overlay</id>
+                <id>servlet3-overlay</id>
                 <phase>process-classes</phase>
-                <goals><goal>compile</goal></goals>
+                <goals><goal>run</goal></goals>
                 <configuration>
-                  <compileSourceRoots>
-                    <compileSourceRoot>${project.basedir}/src/jakarta</compileSourceRoot>
-                  </compileSourceRoots>
-                  <outputDirectory>${jakarta.overlay-classes}</outputDirectory>
+                  <target>
+                    <mkdir dir="${servlet3.overlay-classes}"/>
+                    <javac srcdir="${project.basedir}/src/servlet3"
+                           destdir="${servlet3.overlay-classes}"
+                           release="8" debug="true" includeantruntime="false">
+                      <classpath>
+                        <path refid="maven.plugin.classpath"/>
+                        <path refid="maven.compile.classpath"/>
+                      </classpath>
+                    </javac>
+                  </target>
                 </configuration>
               </execution>
             </executions>
@@ -559,6 +578,72 @@
             <artifactId>maven-dependency-plugin</artifactId>
             <version>3.8.1</version>
             <executions>
+              <execution>
+                <!-- Oldest supported (Tomcat 7), Tomcat 8.5, and newest (Tomcat 9). -->
+                <id>servlet3-copy-test-api</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>copy</goal></goals>
+                <configuration>
+                  <skip>${maven.test.skip}</skip>
+                  <stripVersion>true</stripVersion>
+                  <artifactItems>
+                    <artifactItem>
+                      <groupId>javax.servlet</groupId>
+                      <artifactId>javax.servlet-api</artifactId>
+                      <version>3.0.1</version>
+                      <outputDirectory>${servlet3.test-api}/3.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>javax.servlet.jsp</groupId>
+                      <artifactId>javax.servlet.jsp-api</artifactId>
+                      <version>2.2.1</version>
+                      <outputDirectory>${servlet3.test-api}/3.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>javax.el</groupId>
+                      <artifactId>el-api</artifactId>
+                      <version>2.2</version>
+                      <outputDirectory>${servlet3.test-api}/3.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>javax.servlet</groupId>
+                      <artifactId>javax.servlet-api</artifactId>
+                      <version>3.1.0</version>
+                      <outputDirectory>${servlet3.test-api}/3.1</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>javax.servlet.jsp</groupId>
+                      <artifactId>javax.servlet.jsp-api</artifactId>
+                      <version>2.3.1</version>
+                      <outputDirectory>${servlet3.test-api}/3.1</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>javax.el</groupId>
+                      <artifactId>javax.el-api</artifactId>
+                      <version>3.0.0</version>
+                      <outputDirectory>${servlet3.test-api}/3.1</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>javax.servlet</groupId>
+                      <artifactId>javax.servlet-api</artifactId>
+                      <version>4.0.1</version>
+                      <outputDirectory>${servlet3.test-api}/4.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>javax.servlet.jsp</groupId>
+                      <artifactId>javax.servlet.jsp-api</artifactId>
+                      <version>2.3.3</version>
+                      <outputDirectory>${servlet3.test-api}/4.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>javax.el</groupId>
+                      <artifactId>javax.el-api</artifactId>
+                      <version>3.0.0</version>
+                      <outputDirectory>${servlet3.test-api}/4.0</outputDirectory>
+                    </artifactItem>
+                  </artifactItems>
+                </configuration>
+              </execution>
               <execution>
                 <id>jakarta-unpack-fileupload</id>
                 <phase>process-test-classes</phase>
@@ -668,6 +753,29 @@
             <artifactId>maven-resources-plugin</artifactId>
             <executions>
               <execution>
+                <id>servlet3-copy-classes</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <outputDirectory>${servlet3.classes}</outputDirectory>
+                  <resources>
+                    <resource><directory>${project.build.outputDirectory}</directory></resource>
+                  </resources>
+                </configuration>
+              </execution>
+              <execution>
+                <id>servlet3-copy-overlay-classes</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <overwrite>true</overwrite>
+                  <outputDirectory>${servlet3.classes}</outputDirectory>
+                  <resources>
+                    <resource><directory>${servlet3.overlay-classes}</directory></resource>
+                  </resources>
+                </configuration>
+              </execution>
+              <execution>
                 <id>jakarta-copy-classes</id>
                 <phase>process-test-classes</phase>
                 <goals><goal>copy-resources</goal></goals>
@@ -686,7 +794,7 @@
                   <overwrite>true</overwrite>
                   <outputDirectory>${jakarta.classes}</outputDirectory>
                   <resources>
-                    <resource><directory>${jakarta.overlay-classes}</directory></resource>
+                    <resource><directory>${servlet3.overlay-classes}</directory></resource>
                   </resources>
                 </configuration>
               </execution>
@@ -738,16 +846,82 @@
             <artifactId>maven-surefire-plugin</artifactId>
             <executions>
               <execution>
+                <id>servlet3-test</id>
+                <phase>test</phase>
+                <goals><goal>test</goal></goals>
+                <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>servlet3</struts.build>
+                  </systemPropertyVariables>
+                  <classesDirectory>${servlet3.classes}</classesDirectory>
+                  <reportsDirectory>${project.build.directory}/surefire-reports-servlet3</reportsDirectory>
+                  <classpathDependencyExcludes>
+                    <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
+                  </classpathDependencyExcludes>
+                  <additionalClasspathElements>
+                    <additionalClasspathElement>${servlet3.test-api}/4.0/javax.servlet-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${servlet3.test-api}/4.0/javax.servlet.jsp-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${servlet3.test-api}/4.0/javax.el-api.jar</additionalClasspathElement>
+                  </additionalClasspathElements>
+                </configuration>
+              </execution>
+              <execution>
+                <!-- API compatibility only: the full suite runs against 4.0 above. -->
+                <id>servlet3-compat-3.0</id>
+                <phase>test</phase>
+                <goals><goal>test</goal></goals>
+                <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>servlet3</struts.build>
+                  </systemPropertyVariables>
+                  <test>TestServletApiCompatibility</test>
+                  <classesDirectory>${servlet3.classes}</classesDirectory>
+                  <reportsDirectory>${project.build.directory}/surefire-reports-servlet3-3.0</reportsDirectory>
+                  <classpathDependencyExcludes>
+                    <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
+                  </classpathDependencyExcludes>
+                  <additionalClasspathElements>
+                    <additionalClasspathElement>${servlet3.test-api}/3.0/javax.servlet-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${servlet3.test-api}/3.0/javax.servlet.jsp-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${servlet3.test-api}/3.0/el-api.jar</additionalClasspathElement>
+                  </additionalClasspathElements>
+                </configuration>
+              </execution>
+              <execution>
+                <!-- API compatibility only: the full suite runs against 4.0 above. -->
+                <id>servlet3-compat-3.1</id>
+                <phase>test</phase>
+                <goals><goal>test</goal></goals>
+                <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>servlet3</struts.build>
+                  </systemPropertyVariables>
+                  <test>TestServletApiCompatibility</test>
+                  <classesDirectory>${servlet3.classes}</classesDirectory>
+                  <reportsDirectory>${project.build.directory}/surefire-reports-servlet3-3.1</reportsDirectory>
+                  <classpathDependencyExcludes>
+                    <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
+                  </classpathDependencyExcludes>
+                  <additionalClasspathElements>
+                    <additionalClasspathElement>${servlet3.test-api}/3.1/javax.servlet-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${servlet3.test-api}/3.1/javax.servlet.jsp-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${servlet3.test-api}/3.1/javax.el-api.jar</additionalClasspathElement>
+                  </additionalClasspathElements>
+                </configuration>
+              </execution>
+              <execution>
                 <id>jakarta-test</id>
                 <phase>test</phase>
                 <goals><goal>test</goal></goals>
                 <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>jakarta</struts.build>
+                  </systemPropertyVariables>
                   <classesDirectory>${jakarta.classes}</classesDirectory>
                   <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
                   <reportsDirectory>${project.build.directory}/surefire-reports-jakarta</reportsDirectory>
                   <classpathDependencyExcludes>
                     <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
-                    <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
                     <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
                   </classpathDependencyExcludes>
                   <additionalClasspathElements>
@@ -763,13 +937,15 @@
                 <phase>test</phase>
                 <goals><goal>test</goal></goals>
                 <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>jakarta</struts.build>
+                  </systemPropertyVariables>
                   <test>TestServletApiCompatibility</test>
                   <classesDirectory>${jakarta.classes}</classesDirectory>
                   <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
                   <reportsDirectory>${project.build.directory}/surefire-reports-jakarta-5.0</reportsDirectory>
                   <classpathDependencyExcludes>
                     <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
-                    <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
                     <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
                   </classpathDependencyExcludes>
                   <additionalClasspathElements>
@@ -785,13 +961,15 @@
                 <phase>test</phase>
                 <goals><goal>test</goal></goals>
                 <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>jakarta</struts.build>
+                  </systemPropertyVariables>
                   <test>TestServletApiCompatibility</test>
                   <classesDirectory>${jakarta.classes}</classesDirectory>
                   <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
                   <reportsDirectory>${project.build.directory}/surefire-reports-jakarta-6.1</reportsDirectory>
                   <classpathDependencyExcludes>
                     <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
-                    <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
                     <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
                   </classpathDependencyExcludes>
                   <additionalClasspathElements>
@@ -808,6 +986,15 @@
             <artifactId>maven-jar-plugin</artifactId>
             <version>3.5.0</version>
             <executions>
+              <execution>
+                <id>servlet3-jar</id>
+                <phase>package</phase>
+                <goals><goal>jar</goal></goals>
+                <configuration>
+                  <classifier>servlet3</classifier>
+                  <classesDirectory>${servlet3.classes}</classesDirectory>
+                </configuration>
+              </execution>
               <execution>
                 <id>jakarta-jar</id>
                 <phase>package</phase>
