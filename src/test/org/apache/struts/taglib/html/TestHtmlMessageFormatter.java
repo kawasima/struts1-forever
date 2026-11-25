@@ -26,8 +26,7 @@ import org.apache.struts.util.PropertyMessageResourcesFactory;
 
 /**
  * Tests for {@link HtmlMessageFormatter}: the template from the message
- * resources is written as HTML, and the text of each argument is escaped
- * (issue #6).
+ * resources is written as HTML, and the text of each argument is escaped.
  */
 public class TestHtmlMessageFormatter extends TestCase {
 
@@ -143,8 +142,7 @@ public class TestHtmlMessageFormatter extends TestCase {
 
     /**
      * isPresent() takes a message that starts and ends with "???" for a
-     * missing key, so such a template is escaped whole. This is accepted:
-     * the error goes toward more escaping, never less.
+     * missing key, so such a template is escaped whole.
      */
     public void testTemplateLookingLikeMissingKey_IsEscapedWhole() {
         assertEquals("???&lt;strong&gt;x&lt;/strong&gt;???",
@@ -159,7 +157,7 @@ public class TestHtmlMessageFormatter extends TestCase {
 
     /**
      * A subclass may format messages its own way, so its message is
-     * escaped whole, as in 1.2.9-forever-2.
+     * escaped whole.
      */
     public void testSubclassOfPropertyMessageResources_MessageIsEscapedWhole() {
         MessageResources custom = new PropertyMessageResources(

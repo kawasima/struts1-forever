@@ -246,24 +246,24 @@ public class ErrorsTag extends TagSupport {
                 results.append(message);
             }
             
-            // A resource template is written as HTML and only the text of
-            // its arguments is escaped; a literal message is escaped whole.
             if (report.isResource()) {
                 MessageResources resources =
                     TagUtils.getInstance().retrieveMessageResources(
                         pageContext,
                         bundle,
                         false);
+                Locale userLocale =
+                    TagUtils.getInstance().getUserLocale(pageContext, locale);
                 message =
                     HtmlMessageFormatter.format(
                         resources,
-                        TagUtils.getInstance().getUserLocale(pageContext, locale),
+                        userLocale,
                         report.getKey(),
                         report.getValues());
             } else {
                 message = ResponseUtils.filter(report.getKey());
             }
-
+                    
             if (message != null) {
                 results.append(message);
             }

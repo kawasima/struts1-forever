@@ -36,9 +36,10 @@ import org.apache.struts.mock.MockServletContext;
  *
  * <h3>C-1: Path Traversal in SwitchAction</h3>
  *
- * <p>SwitchAction forwards to the {@code page} request parameter. A value
- * that reaches a server-side resource such as {@code /WEB-INF/web.xml} must
- * be rejected with a {@code ServletException}.</p>
+ * <p>SwitchAction forwards to the <code>page</code> request parameter. A
+ * value that reaches a server-side resource such as
+ * <code>/WEB-INF/web.xml</code> must be rejected with a
+ * <code>ServletException</code>.</p>
  */
 public class TestSwitchAction extends TestCase {
 

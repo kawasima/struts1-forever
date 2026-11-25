@@ -1068,18 +1068,15 @@
                 after each individual error in the list (default "errors.suffix").</li>
                 </ul>
 
-                <p>A message looked up in the message resources is treated
-                as trusted HTML and written as it is; the text produced by
-                each replacement argument is HTML-escaped. This escaping is
-                for HTML text only: an argument placed in a URL, an event
-                handler, a script or a style needs its own encoding or
-                validation. A message created with
-                <code>resource="false"</code>, and the text shown for a
-                missing key, are escaped as a whole. If the message
-                resources are not
-                <code>org.apache.struts.util.PropertyMessageResources</code>
-                itself (a subclass included), the formatted message is
-                escaped as a whole.</p>
+                <p>A message taken from the message resources is written as
+                HTML, and the text of each of its replacement values is
+                filtered for HTML-sensitive characters. Filtering does not
+                make a value safe inside a URL, an event handler, a script
+                or a style. A message that is not a resource key, a message
+                whose key is not found, and every message from
+                <code>MessageResources</code> other than
+                <code>PropertyMessageResources</code> itself are filtered
+                as a whole.</p>
                 </info>
 
                 <attribute>

@@ -33,9 +33,9 @@ import org.apache.struts.mock.MockServletContext;
 import org.apache.struts.util.MessageResources;
 
 /**
- * Tests for {@link ErrorsTag} output escaping (H-2 / CVE-2012-1007, #6).
+ * Tests for {@link ErrorsTag} output escaping (H-2 / CVE-2012-1007).
  *
- * <p>A message created with {@code resource=false} is user data and is
+ * <p>A message created with <code>resource=false</code> is user data and is
  * HTML-escaped as a whole. A message looked up in the message resources is
  * written as HTML; only the text of its replacement arguments is escaped.
  * The header, footer, prefix and suffix come from the message resources and
@@ -170,12 +170,12 @@ public class TestErrorsTag extends TestCase {
     }
 
     // ------------------------------------------------------------------
-    // Resource message — template is HTML, arguments are escaped (#6)
+    // Resource message — template is HTML, arguments are escaped
     // ------------------------------------------------------------------
 
     /**
-     * Markup written in the message resources is rendered as HTML, as in
-     * 1.2.9-forever-1; the argument is escaped, as in 1.2.9-forever-2.
+     * Markup written in the message resources is rendered as HTML; the
+     * argument is escaped.
      */
     public void testResourceMessage_KeepsTemplateMarkup_EscapesArgument()
             throws Exception {
