@@ -210,7 +210,7 @@ public class SelectTag extends BaseHandlerTag {
     protected String renderSelectStartElement() throws JspException {
         StringBuffer results = new StringBuffer("<select");
         
-        prepareAttribute(results, "name", prepareName());
+        prepareAttribute(results, "name", TagUtils.getInstance().filter(prepareName()));
         prepareAttribute(results, "accesskey", getAccesskey());
         if (multiple != null) {
             results.append(" multiple=\"multiple\"");

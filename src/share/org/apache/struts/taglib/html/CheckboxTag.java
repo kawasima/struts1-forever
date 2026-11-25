@@ -121,11 +121,13 @@ public class CheckboxTag extends BaseHandlerTag {
 
         // Create an appropriate "input" element based on our parameters
         StringBuffer results = new StringBuffer("<input type=\"checkbox\"");
-        prepareAttribute(results, "name", prepareName());
+        prepareAttribute(results, "name", TagUtils.getInstance().filter(prepareName()));
         prepareAttribute(results, "accesskey", getAccesskey());
         prepareAttribute(results, "tabindex", getTabindex());
 
-        prepareAttribute(results, "value", getValue());
+        // The value is data: the browser submits it and isChecked() compares
+        // it with the form property.
+        prepareAttribute(results, "value", TagUtils.getInstance().filter(getValue()));
         if (isChecked()) {
             results.append(" checked=\"checked\"");
         }

@@ -31,11 +31,10 @@ import org.apache.struts.mock.MockServletContext;
 /**
  * Tests for {@link OptionTag} HTML escaping (H-3 fix).
  *
- * <p>Verifies that {@code OptionTag} escapes the {@code value} attribute
- * and text content via {@link org.apache.struts.taglib.TagUtils#filter(String)}
- * when the {@code filter} attribute is {@code true} (the default),
- * matching the behavior of {@code <html:options>} and
- * {@code <html:optionsCollection>}.</p>
+ * <p>With {@code filter} {@code true} (the default) the value, which is data,
+ * is escaped with {@link org.apache.struts.taglib.TagUtils#filter(String)} as
+ * in {@code <html:options>}; the label, which is HTML, keeps its character
+ * references and only {@code " ' < >} are escaped (issue #4).</p>
  */
 public class TestOptionTag extends TestCase {
 
@@ -200,6 +199,100 @@ public class TestOptionTag extends TestCase {
         assertFalse("Raw single-quote in option text must be escaped (H-3)",
             output.contains(">it's<"));
         assertTrue("&#39; must appear", output.contains("&#39;"));
+    }
+
+    // ------------------------------------------------------------------
+    // Character references — HTML labels and data values (issue #4)
+    // ------------------------------------------------------------------
+
+    /** &nbsp; and &eacute; display as they did in 1.2.9-forever-2. */
+    public void testText_WithCharacterReferences_IsKept() throws Exception {
+        String output = runOptionTag("child", "&nbsp;&nbsp;Caf&eacute;");
+        assertTrue(output, output.contains(">&nbsp;&nbsp;Caf&eacute;</option>"));
+    }
+
+    /**
+     * The value is data: the browser submits exactly the value, and the option
+     * that the submitted value matches is selected when the form is shown
+     * again.
+     */
+    public void testValue_IsSubmittedAsGivenAndSelectedWhenMatched() throws Exception {
+        String output = runOptionTagSelecting("a&b", "a&b");
+        assertEquals("a&b", TestAttributeValueEncoding.attribute(output, "value"));
+        assertTrue(output, output.contains("selected=\"selected\""));
+
+        output = runOptionTagSelecting("a&amp;b", "a&amp;b");
+        assertEquals("a&amp;b", TestAttributeValueEncoding.attribute(output, "value"));
+        assertTrue(output, output.contains("selected=\"selected\""));
+    }
+
+    /**
+     * Without body text or a key the value is shown as the label. It is
+     * still data, so the label shows exactly what the browser submits.
+     */
+    public void testLabel_WithoutTextOrKey_ShowsTheValueAsGiven() throws Exception {
+        String[] values = {"A&B", "A&amp;B", "&copy;", "&#65;"};
+        for (int i = 0; i < values.length; i++) {
+            String output = runOptionTag(values[i], null);
+            assertEquals(values[i], TestAttributeValueEncoding.attribute(output, "value"));
+            assertEquals(values[i], label(output));
+        }
+    }
+
+    /** Body text is HTML even when it is the same string as the value. */
+    public void testText_EqualToTheValue_IsHtml() throws Exception {
+        String output = runOptionTag("A&amp;B", "A&amp;B");
+        assertEquals("A&amp;B", TestAttributeValueEncoding.attribute(output, "value"));
+        assertEquals("A&B", label(output));
+    }
+
+    /** A label from an overridden text() is HTML, as it was before. */
+    public void testText_FromSubclass_IsHtml() throws Exception {
+        stubSelectTag();
+        OptionTag tag = new OptionTag() {
+            protected String text() {
+                return "A&amp;B";
+            }
+        };
+        tag.setPageContext(pageContext);
+        tag.setValue("v");
+        assertEquals("A&B", label(tag.renderOptionElement()));
+    }
+
+    /** A subclass that falls back on super.text() gets the value as data. */
+    public void testText_FromSubclassFallingBackOnTheValue_IsData() throws Exception {
+        stubSelectTag();
+        OptionTag tag = new OptionTag() {
+            protected String text() throws JspException {
+                return super.text();
+            }
+        };
+        tag.setPageContext(pageContext);
+        tag.setValue("A&amp;B");
+        assertEquals("A&amp;B", label(tag.renderOptionElement()));
+    }
+
+    /** The label of the option element, decoded as the browser reads it. */
+    private static String label(String html) {
+        int start = html.indexOf('>') + 1;
+        int end = html.indexOf("</option>");
+        assertTrue(html, start > 0 && end >= start);
+        return TestAttributeValueEncoding.decode(html.substring(start, end));
+    }
+
+    private String runOptionTagSelecting(String value, String selected) throws Exception {
+        stubSelectTag().match = new String[] {selected};
+        out = new MockJspWriter();
+        pageContext.setJspWriter(out);
+
+        InjectableOptionTag tag = new InjectableOptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue(value);
+        tag.setBodyText("Label");
+        tag.doStartTag();
+        tag.doEndTag();
+
+        return out.getContent();
     }
 
     // ------------------------------------------------------------------

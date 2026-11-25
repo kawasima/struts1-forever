@@ -85,9 +85,27 @@ public class OptionTag extends BodyTagSupport {
     }
 
     /**
-     * Should the label and value be filtered for HTML sensitive characters?
+     * Should the label and value be escaped for HTML? The value is data: the
+     * browser submits it and {@link SelectTag#isMatched} compares it with the
+     * form property, so it is escaped completely, as
+     * <code>&lt;html:options&gt;</code> escapes its values. The label is HTML
+     * (body content or a message resource), so character references such as
+     * <code>&amp;nbsp;</code> in it are kept and only <code>"</code>,
+     * <code>'</code>, <code>&lt;</code> and <code>&gt;</code> are escaped.
+     * Without body content or a key the value is shown as the label; it is
+     * still data, so it is escaped completely there too, as are the labels
+     * of <code>&lt;html:options&gt;</code>, which come from beans. With
+     * <code>false</code> both are written as given.
      */
     protected boolean filter = true;
+
+    /**
+     * Set by {@link #text()} when the label it returns is the value, which
+     * is data, rather than HTML from the body or a message resource. It is
+     * reset before each call, so a subclass that overrides
+     * <code>text()</code> without calling it gets its label treated as HTML.
+     */
+    private boolean labelIsValue = false;
 
     public boolean getFilter() {
         return (this.filter);
@@ -277,11 +295,14 @@ public class OptionTag extends BodyTagSupport {
         }
         results.append(">");
 
+        labelIsValue = false;
         String optionText = text();
-        if (filter) {
+        if (!filter) {
+            results.append(optionText);
+        } else if (labelIsValue) {
             results.append(TagUtils.getInstance().filter(optionText));
         } else {
-            results.append(optionText);
+            results.append(LegacyMarkup.escape(optionText));
         }
 
         results.append("</option>");
@@ -340,7 +361,8 @@ public class OptionTag extends BodyTagSupport {
 
         // no body text and no key to lookup so display the value
         if (optionText == null) {
-            optionText = this.value;    
+            optionText = this.value;
+            labelIsValue = true;
         }
 
         return optionText;

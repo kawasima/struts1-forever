@@ -4879,7 +4879,14 @@
             <info>
                 Set to <code>false</code> if you do NOT want the option label
                 and value filtered for sensitive characters in HTML.  By default,
-                such values are filtered.
+                the value is filtered completely, because it is the data that is
+                submitted and compared with the form property. In the label,
+                which is HTML, character references such as
+                <code>&amp;nbsp;</code> are kept and only <code>"</code>,
+                <code>'</code>, <code>&lt;</code> and <code>&gt;</code> are
+                escaped. When there is neither body content nor a
+                <code>key</code>, the value is shown as the label and is
+                filtered completely there as well.
             </info>
         </attribute>
 

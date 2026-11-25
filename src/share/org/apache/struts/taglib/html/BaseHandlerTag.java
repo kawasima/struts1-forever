@@ -894,6 +894,23 @@ public abstract class BaseHandlerTag extends BodyTagSupport {
     /**
      * Prepares an attribute if the value is not null, appending it to the the given
      * StringBuffer.
+     *
+     * <p>The value is HTML, as it has always been: character references in it,
+     * such as the <code>&amp;amp;</code> between URL parameters, are written as
+     * they are. Only <code>"</code>, <code>'</code>, <code>&lt;</code> and
+     * <code>&gt;</code> are escaped, so that the value cannot end the attribute.
+     * Escape data that is not HTML, such as a value that is submitted and
+     * compared with a form property, with <code>TagUtils.filter()</code> before
+     * passing it.</p>
+     *
+     * <p>An event handler is JavaScript inside an attribute, and the browser
+     * decodes character references in it before running it. To put data into
+     * a handler, escape it for a JavaScript string literal, build the code,
+     * and then escape the code with <code>TagUtils.filter()</code>; the
+     * references that this writes are kept, so the browser runs the code as
+     * built. Escaping for JavaScript alone is not enough, because a
+     * reference in the data would be decoded into the code.</p>
+     *
      * @param handlers The StringBuffer that output will be appended to.
      */
     protected void prepareAttribute(StringBuffer handlers, String name, Object value) {
@@ -901,7 +918,7 @@ public abstract class BaseHandlerTag extends BodyTagSupport {
             handlers.append(" ");
             handlers.append(name);
             handlers.append("=\"");
-            handlers.append(TagUtils.getInstance().filter(value.toString()));
+            handlers.append(LegacyMarkup.escape(value.toString()));
             handlers.append("\"");
         }
     }

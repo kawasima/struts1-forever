@@ -215,7 +215,7 @@ public class RadioTag extends BaseHandlerTag {
             
         StringBuffer results = new StringBuffer("<input type=\"radio\"");
 
-        prepareAttribute(results, "name", prepareName());
+        prepareAttribute(results, "name", TagUtils.getInstance().filter(prepareName()));
         prepareAttribute(results, "accesskey", getAccesskey());
         prepareAttribute(results, "tabindex", getTabindex());
         prepareAttribute(results, "value", TagUtils.getInstance().filter(serverValue));

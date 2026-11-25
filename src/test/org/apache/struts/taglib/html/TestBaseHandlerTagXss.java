@@ -28,25 +28,17 @@ import org.apache.struts.mock.MockServletConfig;
 import org.apache.struts.mock.MockServletContext;
 
 /**
- * XSS tests for {@link BaseHandlerTag#prepareAttribute} and event-handler
- * attribute rendering in HTML tags — M-4.
+ * Attribute values written by {@link BaseHandlerTag#prepareAttribute} cannot
+ * end their attribute (M-4): <code>"</code>, <code>'</code>, <code>&lt;</code>
+ * and <code>&gt;</code> are escaped.
  *
- * <h3>Vulnerability: unescaped attribute values in BaseHandlerTag</h3>
- *
- * <p>{@link BaseHandlerTag#prepareAttribute(StringBuffer, String, Object)}
- * appends attribute values directly into the HTML output <em>without</em>
- * calling {@link org.apache.struts.taglib.TagUtils#filter(String)}.
- * This means that if user-controlled data reaches an event-handler attribute
- * (e.g. {@code onclick}, {@code onmouseover}) the raw value is written into
- * the HTML, enabling XSS.</p>
- *
- * <p>Concretely, a tag like
- * {@code <html:text onclick='${param.cb}'/>} where {@code cb} contains
- * {@code alert(1)} will produce {@code onclick="alert(1)"} in the output —
- * which executes as JavaScript.</p>
- *
- * <p>Tests that assert escaping <strong>FAIL</strong> until
- * {@code BaseHandlerTag.prepareAttribute} is fixed.</p>
+ * <p>This keeps user data from adding attributes or elements. It does not make
+ * data safe inside an event handler. The handler is JavaScript in an HTML
+ * attribute, and the browser decodes the attribute before running it, so the
+ * application escapes data for a JavaScript string literal and then escapes
+ * the code it built with <code>TagUtils.filter()</code>. Character references
+ * in values are kept (issue #4), so the browser runs that code as built; see
+ * {@link TestAttributeValueEncoding}.</p>
  */
 public class TestBaseHandlerTagXss extends TestCase {
 
@@ -98,14 +90,12 @@ public class TestBaseHandlerTagXss extends TestCase {
     }
 
     // ------------------------------------------------------------------
-    // onclick — prepareAttribute does NOT escape values (M-4)
+    // onclick (M-4)
     // ------------------------------------------------------------------
 
     /**
      * A double-quote in an onclick value must be escaped as {@code &quot;}
      * to prevent breaking out of the attribute context (XSS).
-     *
-     * <p>Currently FAILS — {@code prepareAttribute} does not escape (M-4).</p>
      */
     public void testOnclick_EscapesDoubleQuote() throws Exception {
         String output = renderTextTagWithOnclick("bad\"injection");
@@ -117,8 +107,6 @@ public class TestBaseHandlerTagXss extends TestCase {
 
     /**
      * A single-quote in an onclick value must be escaped as {@code &#39;}.
-     *
-     * <p>Currently FAILS — {@code prepareAttribute} does not escape (M-4).</p>
      */
     public void testOnclick_EscapesSingleQuote() throws Exception {
         String output = renderTextTagWithOnclick("bad'injection");
@@ -129,8 +117,6 @@ public class TestBaseHandlerTagXss extends TestCase {
 
     /**
      * A less-than sign in an onclick value must be escaped as {@code &lt;}.
-     *
-     * <p>Currently FAILS — {@code prepareAttribute} does not escape (M-4).</p>
      */
     public void testOnclick_EscapesLessThan() throws Exception {
         String output = renderTextTagWithOnclick("a<b");
@@ -176,8 +162,6 @@ public class TestBaseHandlerTagXss extends TestCase {
     /**
      * A double-quote in tabindex must be escaped as {@code &quot;}
      * to prevent attribute injection.
-     *
-     * <p>Currently FAILS — {@code prepareAttribute} does not escape (M-4).</p>
      */
     public void testTabindex_EscapesDoubleQuote() throws Exception {
         pageContext.setAttribute("testBean", "someValue", PageContext.REQUEST_SCOPE);
