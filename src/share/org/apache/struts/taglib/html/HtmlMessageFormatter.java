@@ -56,10 +56,6 @@ import org.apache.struts.util.ResponseUtils;
  * <li>A template that starts and ends with "???" is taken for a missing
  *     key by {@code isPresent()} and escaped whole.</li>
  * </ul>
- * <p>If this class is shared with another tag (for example to escape the
- * arguments of {@code <bean:message>}), move it next to
- * {@code MessageResources} so it can use the cached format instead of
- * copying it.</p>
  */
 final class HtmlMessageFormatter {
 

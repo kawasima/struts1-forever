@@ -113,8 +113,12 @@ public class TestHtmlMessageFormatter extends TestCase {
      * argument, so markup inside a choice is escaped.
      */
     public void testChoiceFormatMarkup_IsEscaped() {
+        MessageResources noEscape = MessageResources.getMessageResources(BUNDLE);
+        noEscape.setEscape(false);
+
         assertEquals("&lt;i&gt;one&lt;/i&gt;",
-                format("choice", new Object[] {new Integer(1)}));
+                HtmlMessageFormatter.format(noEscape, Locale.ENGLISH,
+                        "choice", new Object[] {new Integer(1)}));
     }
 
     /** U+FFFF is CharacterIterator.DONE; it must not end the message. */
