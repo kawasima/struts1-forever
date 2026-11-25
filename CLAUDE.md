@@ -41,17 +41,18 @@ mvn test -Dtest=TestDynaActionForm#testXxx
 mvn test-compile
 ```
 
-Note: Surefire is configured with explicit `<includes>` in pom.xml. If you add a new test class, add it to that list or it won't run.
+Surefire runs every `**/Test*.java` class and fails when it finds no tests. Exclusions in `pom.xml` must name the issue that removes them.
 
 ### javax and jakarta builds
 
 The sources are written against `javax.servlet` only. On JDK 17+ the `jakarta` profile in `pom.xml` is active and, in addition to the normal build:
 
-- runs every unit test a second time against the jakarta build (surefire execution `jakarta-test`, reports in `target/surefire-reports-jakarta/`),
+- runs every unit test a second time against the jakarta build on Jakarta Servlet 6.0 (surefire execution `jakarta-test`, reports in `target/surefire-reports-jakarta/`),
+- runs `TestServletApiCompatibility` against Servlet 5.0 and 6.1 as well (`jakarta-compat-5.0`, `jakarta-compat-6.1`),
 - packages `target/struts-<version>-jakarta.jar` (classes transformed by Eclipse Transformer, with commons-fileupload bundled),
 - runs `src/it/jakarta-tomcat` with maven-invoker-plugin in `mvn verify`, which deploys that JAR to an embedded Tomcat 10.1.
 
-A change is not done until both test runs pass. If a test passes under javax and fails under jakarta, the cause is usually a Servlet/JSP API method that was removed in Servlet 6.0 or added after Servlet 2.2; `TestServletApiLinkage` lists every unresolved reference.
+A change is not done until all of these pass. If a test passes under javax and fails under jakarta, the cause is usually a Servlet/JSP API method that was removed in Servlet 6.0 or added after Servlet 2.2; `TestServletApiCompatibility` lists every class, method and field that does not link.
 
 On JDK 8–16 the profile is inactive and only the javax build runs.
 
@@ -96,7 +97,7 @@ When running under Tomcat 9 (Servlet 5.0), Tomcat honours the `web.xml` `<taglib
 
 - **`src/share/`** — Main production sources (Maven `sourceDirectory`)
 - **`src/test/`** — Test sources (Maven `testSourceDirectory`); run against both builds
-- **`src/jakarta/`** — Classes that replace their transformed javax counterpart in the jakarta JAR only. Keep this to classes that cannot work after transformation (currently `MultipartRequestWrapper`), keep their public/protected API identical to the javax class, and cover the shared behaviour with tests in `src/test/`
+- **`src/jakarta/`** — Classes that replace their transformed javax counterpart in the jakarta JAR only. Keep this to classes that cannot work after transformation (currently `MultipartRequestWrapper`). Put the Struts behaviour they share with the javax class in a package-private helper in `src/share/` that takes no Servlet API types (e.g. `MultipartParameters`), keep no state that duplicates state of a Servlet API superclass, and cover the shared behaviour with tests in `src/test/`
 - **`src/it/jakarta-tomcat/`** — Integration test webapp for the jakarta JAR (Java 11+, Tomcat 10.1)
 - **`conf/share/`** — DTDs and `validator-rules.xml`; copied to `target/classes/org/apache/struts/resources/` at compile time
 - **`doc/userGuide/`** — XML source for tag library documentation; XSLT-transformed into TLD files at `generate-resources` phase

@@ -319,22 +319,13 @@
         <version>2.18.1</version>
         <configuration>
           <includes>
-            <include>org/apache/struts/action/TestDynaActionForm.java</include>
-            <include>org/apache/struts/action/TestDynaActionFormClass.java</include>
-            <include>org/apache/struts/action/TestActionServlet.java</include>
-            <include>org/apache/struts/action/TestDigesterXxePrevention.java</include>
-            <include>org/apache/struts/actions/Test*.java</include>
-            <include>org/apache/struts/config/Test*.java</include>
-            <include>org/apache/struts/taglib/TestTagUtils.java</include>
-            <include>org/apache/struts/taglib/bean/Test*.java</include>
-            <include>org/apache/struts/taglib/html/Test*.java</include>
-            <include>org/apache/struts/taglib/logic/Test*.java</include>
-            <include>org/apache/struts/util/Test*.java</include>
-            <include>org/apache/struts/upload/Test*.java</include>
-            <include>org/apache/struts/validator/Test*.java</include>
-            <include>org/apache/struts/tiles/TestI18nFactorySetPathTraversal.java</include>
-            <include>org/apache/struts/TestServletApiLinkage.java</include>
+            <include>**/Test*.java</include>
           </includes>
+          <excludes>
+            <!-- Fails until #3 (DOCTYPE rejected) is fixed. -->
+            <exclude>org/apache/struts/tiles/TestTilesPlugin.java</exclude>
+          </excludes>
+          <failIfNoTests>true</failIfNoTests>
         </configuration>
       </plugin>
     </plugins>
@@ -516,7 +507,7 @@
                       <artifactId>commons-fileupload</artifactId>
                       <overWrite>true</overWrite>
                       <outputDirectory>${jakarta.classes}</outputDirectory>
-                      <excludes>META-INF/MANIFEST.MF,META-INF/maven/**,META-INF/versions/**</excludes>
+                      <excludes>META-INF/MANIFEST.MF,META-INF/maven/**,META-INF/versions/**,org/apache/commons/fileupload/portlet/**</excludes>
                     </artifactItem>
                   </artifactItems>
                 </configuration>
@@ -547,23 +538,62 @@
                 <goals><goal>copy</goal></goals>
                 <configuration>
                   <skip>${maven.test.skip}</skip>
-                  <outputDirectory>${jakarta.test-api}</outputDirectory>
                   <stripVersion>true</stripVersion>
                   <artifactItems>
+                    <!-- Oldest supported (Jakarta EE 9), tested runtime (Jakarta EE 10), newest (Jakarta EE 11). -->
+                    <artifactItem>
+                      <groupId>jakarta.servlet</groupId>
+                      <artifactId>jakarta.servlet-api</artifactId>
+                      <version>5.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/5.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.servlet.jsp</groupId>
+                      <artifactId>jakarta.servlet.jsp-api</artifactId>
+                      <version>3.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/5.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.el</groupId>
+                      <artifactId>jakarta.el-api</artifactId>
+                      <version>4.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/5.0</outputDirectory>
+                    </artifactItem>
                     <artifactItem>
                       <groupId>jakarta.servlet</groupId>
                       <artifactId>jakarta.servlet-api</artifactId>
                       <version>6.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/6.0</outputDirectory>
                     </artifactItem>
                     <artifactItem>
                       <groupId>jakarta.servlet.jsp</groupId>
                       <artifactId>jakarta.servlet.jsp-api</artifactId>
                       <version>3.1.1</version>
+                      <outputDirectory>${jakarta.test-api}/6.0</outputDirectory>
                     </artifactItem>
                     <artifactItem>
                       <groupId>jakarta.el</groupId>
                       <artifactId>jakarta.el-api</artifactId>
                       <version>5.0.1</version>
+                      <outputDirectory>${jakarta.test-api}/6.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.servlet</groupId>
+                      <artifactId>jakarta.servlet-api</artifactId>
+                      <version>6.1.0</version>
+                      <outputDirectory>${jakarta.test-api}/6.1</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.servlet.jsp</groupId>
+                      <artifactId>jakarta.servlet.jsp-api</artifactId>
+                      <version>4.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/6.1</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.el</groupId>
+                      <artifactId>jakarta.el-api</artifactId>
+                      <version>6.0.1</version>
+                      <outputDirectory>${jakarta.test-api}/6.1</outputDirectory>
                     </artifactItem>
                   </artifactItems>
                 </configuration>
@@ -658,9 +688,53 @@
                     <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
                   </classpathDependencyExcludes>
                   <additionalClasspathElements>
-                    <additionalClasspathElement>${jakarta.test-api}/jakarta.servlet-api.jar</additionalClasspathElement>
-                    <additionalClasspathElement>${jakarta.test-api}/jakarta.servlet.jsp-api.jar</additionalClasspathElement>
-                    <additionalClasspathElement>${jakarta.test-api}/jakarta.el-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/6.0/jakarta.servlet-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/6.0/jakarta.servlet.jsp-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/6.0/jakarta.el-api.jar</additionalClasspathElement>
+                  </additionalClasspathElements>
+                </configuration>
+              </execution>
+              <execution>
+                <!-- API compatibility only: the full suite runs against 6.0 above. -->
+                <id>jakarta-compat-5.0</id>
+                <phase>test</phase>
+                <goals><goal>test</goal></goals>
+                <configuration>
+                  <test>TestServletApiCompatibility</test>
+                  <classesDirectory>${jakarta.classes}</classesDirectory>
+                  <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
+                  <reportsDirectory>${project.build.directory}/surefire-reports-jakarta-5.0</reportsDirectory>
+                  <classpathDependencyExcludes>
+                    <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
+                  </classpathDependencyExcludes>
+                  <additionalClasspathElements>
+                    <additionalClasspathElement>${jakarta.test-api}/5.0/jakarta.servlet-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/5.0/jakarta.servlet.jsp-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/5.0/jakarta.el-api.jar</additionalClasspathElement>
+                  </additionalClasspathElements>
+                </configuration>
+              </execution>
+              <execution>
+                <!-- API compatibility only: the full suite runs against 6.0 above. -->
+                <id>jakarta-compat-6.1</id>
+                <phase>test</phase>
+                <goals><goal>test</goal></goals>
+                <configuration>
+                  <test>TestServletApiCompatibility</test>
+                  <classesDirectory>${jakarta.classes}</classesDirectory>
+                  <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
+                  <reportsDirectory>${project.build.directory}/surefire-reports-jakarta-6.1</reportsDirectory>
+                  <classpathDependencyExcludes>
+                    <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
+                  </classpathDependencyExcludes>
+                  <additionalClasspathElements>
+                    <additionalClasspathElement>${jakarta.test-api}/6.1/jakarta.servlet-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/6.1/jakarta.servlet.jsp-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/6.1/jakarta.el-api.jar</additionalClasspathElement>
                   </additionalClasspathElements>
                 </configuration>
               </execution>
@@ -694,6 +768,7 @@
               <settingsFile>src/it/settings.xml</settingsFile>
               <goals><goal>verify</goal></goals>
               <streamLogsOnFailures>true</streamLogsOnFailures>
+              <failIfNoProjects>true</failIfNoProjects>
             </configuration>
             <executions>
               <execution>

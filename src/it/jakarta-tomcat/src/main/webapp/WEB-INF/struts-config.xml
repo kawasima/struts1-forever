@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  No DOCTYPE, and validation is turned off in web.xml: ActionServlet
-  currently rejects any DOCTYPE (#3). Restore the standard declaration and
-  remove the validating=false init-param when #3 is fixed.
--->
+<!-- No DOCTYPE, and validating=false in web.xml, until #3 is fixed. -->
 <struts-config>
   <form-beans>
     <form-bean name="echoForm" type="org.apache.struts.action.DynaActionForm">

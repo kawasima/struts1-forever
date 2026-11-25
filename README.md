@@ -11,7 +11,18 @@ Because Commons-Beanutils 1.9.2 is used for preventing a dangerous population.
 
 ## Jakarta EE (Tomcat 10+)
 
-Each release also ships `struts-<version>-jakarta.jar` for containers that use the `jakarta.servlet` namespace (Jakarta EE 9 or later, Java 8 or later). It is built from the same sources as the javax JAR, so it contains the same fixes. Your own code still has to be migrated from `javax.servlet` to `jakarta.servlet`.
+Each release also ships `struts-<version>-jakarta.jar` for containers that use the `jakarta.servlet` namespace. It is built from the same sources as the javax JAR, so it contains the same fixes. Your own code still has to be migrated from `javax.servlet` to `jakarta.servlet`.
+
+| | |
+| --- | --- |
+| Target API | Jakarta Servlet 5.0 or later, Jakarta Server Pages 3.0 or later |
+| API compatibility checked against | Servlet 5.0 / JSP 3.0, Servlet 6.0 / JSP 3.1, Servlet 6.1 / JSP 4.0 |
+| Runtime tested on | Tomcat 10.1 (Servlet 6.0 / JSP 3.1) |
+| Class file version | Java 8 |
+
+The API compatibility check verifies that every class loads and that every Servlet/JSP class, method and field it uses exists in that API version. Only Tomcat 10.1 runs the full request cycle in the build.
+
+`org.apache.struts.upload.MultipartRequestWrapper` extends `jakarta.servlet.http.HttpServletRequestWrapper` in the jakarta JAR and has no `protected request` field. Subclasses use `getRequest()` and `setRequest()`.
 
 The jakarta JAR bundles Commons FileUpload 1.6.0, converted to `jakarta.servlet`, under its original package names. When you switch to it:
 

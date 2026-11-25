@@ -20,11 +20,7 @@ package org.apache.struts.upload;
 
 import java.util.Map;
 import java.util.Locale;
-import java.util.Vector;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.io.IOException;
 import java.io.BufferedReader;
@@ -79,17 +75,9 @@ public class MultipartRequestWrapper implements HttpServletRequest {
      * getParameter() methods of this class will work as if they weren't.
      */
     public void setParameter(String name, String value) {
-        String[] mValue = (String[]) parameters.get(name);
-        if (mValue == null) {
-            mValue = new String[0];
-        }
-        String[] newValue = new String[mValue.length + 1];
-        System.arraycopy(mValue, 0, newValue, 0, mValue.length);
-        newValue[mValue.length] = value;
-        
-        parameters.put(name, newValue);
+        MultipartParameters.add(parameters, name, value);
     }
-    
+
     /**
      * Attempts to get a parameter for this request.  It first looks in the
      * underlying HttpServletRequest object for the parameter, and if that
@@ -97,41 +85,23 @@ public class MultipartRequestWrapper implements HttpServletRequest {
      * request
      */
     public String getParameter(String name) {
-        String value = request.getParameter(name);
-        if (value == null) {
-            String[] mValue = (String[]) parameters.get(name);
-            if ((mValue != null) && (mValue.length > 0)) {
-                value = mValue[0];
-            }
-        }
-        return value;
+        return MultipartParameters.first(
+                request.getParameter(name), parameters, name);
     }
-    
+
     /**
      * Returns the names of the parameters for this request.
      * The enumeration consists of the normal request parameter
      * names plus the parameters read from the multipart request
      */
     public Enumeration getParameterNames() {
-        Enumeration baseParams = request.getParameterNames();
-        Vector list = new Vector();
-        while (baseParams.hasMoreElements()) {
-            list.add(baseParams.nextElement());
-        }
-        Collection multipartParams = parameters.keySet();
-        Iterator iterator = multipartParams.iterator();
-        while (iterator.hasNext()) {
-            list.add(iterator.next());
-        }
-        return Collections.enumeration(list);
+        return MultipartParameters.names(
+                request.getParameterNames(), parameters);
     }
-    
+
     public String[] getParameterValues(String name) {
-        String[] value = request.getParameterValues(name);
-        if (value == null) {
-            value = (String[]) parameters.get(name);
-        }
-        return value;
+        return MultipartParameters.values(
+                request.getParameterValues(name), parameters, name);
     }
     
     /**
@@ -280,13 +250,14 @@ public class MultipartRequestWrapper implements HttpServletRequest {
      * Implements the Servlet 2.3 <i>getParameterMap</i> method.
      */
     public Map getParameterMap() {
-        Map map = new HashMap(parameters);
+        // Servlet 2.2 has no getParameterMap() to read from the request.
+        Map requestParameters = new HashMap();
         Enumeration names = request.getParameterNames();
         while (names.hasMoreElements()) {
             String name = (String)names.nextElement();
-            map.put(name, request.getParameterValues(name));
+            requestParameters.put(name, request.getParameterValues(name));
         }
-        return map;
+        return MultipartParameters.map(parameters, requestParameters);
     }
 
     /**

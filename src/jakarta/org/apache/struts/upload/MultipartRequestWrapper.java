@@ -17,13 +17,9 @@
 package org.apache.struts.upload;
 
 import java.io.UnsupportedEncodingException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Vector;
 
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,14 +33,26 @@ import org.apache.commons.logging.LogFactory;
  * jakarta JAR in place of the transformed javax class.
  *
  * <p>The javax class implements {@code HttpServletRequest} directly so that
- * it still compiles against Servlet 2.2. After transformation it lacks every
- * method added since then, and it calls methods removed in Servlet 6.0. This
- * class extends {@link HttpServletRequestWrapper} instead, so the container
- * supplies every current and future method, and keeps the public and
- * protected API of the javax class.</p>
+ * it still compiles against Servlet 2.2, which freezes the methods it can
+ * delegate at that version. This class extends
+ * {@link HttpServletRequestWrapper} instead, so the container supplies every
+ * current and future method.</p>
  *
- * <p>Behaviour shared with the javax class is pinned by
- * {@code TestMultipartRequestWrapper}, which runs against both JARs.</p>
+ * <p>Differences from the javax class:</p>
+ * <ul>
+ * <li>There is no {@code protected HttpServletRequest request} field. The
+ * wrapped request is held only by {@code ServletRequestWrapper}, whose
+ * methods use it directly, and containers replace it through
+ * {@link #setRequest(ServletRequest)} during forward and include. A second
+ * copy in a field could silently point to a different request. Subclasses
+ * use {@link #getRequest()} and {@link #setRequest(ServletRequest)}.</li>
+ * <li>{@link #setRequest(ServletRequest)} accepts only an
+ * {@code HttpServletRequest}.</li>
+ * </ul>
+ *
+ * <p>Parameter merging is shared with the javax class through
+ * {@link MultipartParameters}, and {@code TestMultipartRequestWrapper} runs
+ * against both JARs.</p>
  */
 public class MultipartRequestWrapper extends HttpServletRequestWrapper {
 
@@ -56,14 +64,8 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
      */
     protected Map parameters;
 
-    /**
-     * The underlying HttpServletRequest
-     */
-    protected HttpServletRequest request;
-
     public MultipartRequestWrapper(HttpServletRequest request) {
         super(request);
-        this.request = request;
         this.parameters = new HashMap();
     }
 
@@ -73,15 +75,7 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
      * getParameter() methods of this class will work as if they weren't.
      */
     public void setParameter(String name, String value) {
-        String[] mValue = (String[]) parameters.get(name);
-        if (mValue == null) {
-            mValue = new String[0];
-        }
-        String[] newValue = new String[mValue.length + 1];
-        System.arraycopy(mValue, 0, newValue, 0, mValue.length);
-        newValue[mValue.length] = value;
-
-        parameters.put(name, newValue);
+        MultipartParameters.add(parameters, name, value);
     }
 
     /**
@@ -91,14 +85,8 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
      * request
      */
     public String getParameter(String name) {
-        String value = request.getParameter(name);
-        if (value == null) {
-            String[] mValue = (String[]) parameters.get(name);
-            if ((mValue != null) && (mValue.length > 0)) {
-                value = mValue[0];
-            }
-        }
-        return value;
+        return MultipartParameters.first(
+                getRequest().getParameter(name), parameters, name);
     }
 
     /**
@@ -107,47 +95,37 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
      * names plus the parameters read from the multipart request
      */
     public Enumeration getParameterNames() {
-        Enumeration baseParams = request.getParameterNames();
-        Vector list = new Vector();
-        while (baseParams.hasMoreElements()) {
-            list.add(baseParams.nextElement());
-        }
-        Collection multipartParams = parameters.keySet();
-        Iterator iterator = multipartParams.iterator();
-        while (iterator.hasNext()) {
-            list.add(iterator.next());
-        }
-        return Collections.enumeration(list);
+        return MultipartParameters.names(
+                getRequest().getParameterNames(), parameters);
     }
 
     public String[] getParameterValues(String name) {
-        String[] value = request.getParameterValues(name);
-        if (value == null) {
-            value = (String[]) parameters.get(name);
-        }
-        return value;
+        return MultipartParameters.values(
+                getRequest().getParameterValues(name), parameters, name);
     }
 
     public Map getParameterMap() {
-        Map map = new HashMap(parameters);
-        Enumeration names = request.getParameterNames();
-        while (names.hasMoreElements()) {
-            String name = (String) names.nextElement();
-            map.put(name, request.getParameterValues(name));
-        }
-        return map;
+        return MultipartParameters.map(parameters, getRequest().getParameterMap());
     }
 
     /**
      * Returns the underlying HttpServletRequest for this wrapper
      */
     public HttpServletRequest getRequest() {
-        return request;
+        return (HttpServletRequest) super.getRequest();
     }
 
+    /**
+     * Replaces the wrapped request. Rejects anything but an
+     * {@code HttpServletRequest} before changing any state.
+     */
     public void setRequest(ServletRequest request) {
+        if (!(request instanceof HttpServletRequest)) {
+            throw new IllegalArgumentException(
+                    "MultipartRequestWrapper requires an HttpServletRequest: "
+                    + request);
+        }
         super.setRequest(request);
-        this.request = (HttpServletRequest) request;
     }
 
     /**
@@ -156,7 +134,7 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
      */
     public void setCharacterEncoding(String encoding) {
         try {
-            request.setCharacterEncoding(encoding);
+            getRequest().setCharacterEncoding(encoding);
         } catch (UnsupportedEncodingException e) {
             log.error("Error invoking method 'setCharacterEncoding' ", e);
         }
@@ -166,7 +144,7 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
      * {@code ServletRequest.getRealPath} was removed in Servlet 6.0.
      */
     public String getRealPath(String path) {
-        return request.getServletContext().getRealPath(path);
+        return getServletContext().getRealPath(path);
     }
 
     /**
@@ -174,6 +152,6 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
      * Servlet 6.0.
      */
     public boolean isRequestedSessionIdFromUrl() {
-        return request.isRequestedSessionIdFromURL();
+        return isRequestedSessionIdFromURL();
     }
 }

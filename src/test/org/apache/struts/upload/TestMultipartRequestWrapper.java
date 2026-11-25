@@ -16,16 +16,10 @@
 
 package org.apache.struts.upload;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import javax.servlet.http.HttpServletRequest;
 
 import junit.framework.TestCase;
 
@@ -37,7 +31,9 @@ import org.apache.struts.mock.MockHttpSession;
  *
  * <p>The jakarta JAR ships a different implementation of this class
  * (see <code>src/jakarta</code>). These tests run against both builds and
- * pin the behaviour the two implementations must share.</p>
+ * pin the behaviour the two implementations must share. That every
+ * <code>HttpServletRequest</code> method is implemented is checked for all
+ * classes by <code>TestServletApiCompatibility</code>.</p>
  */
 public class TestMultipartRequestWrapper extends TestCase {
 
@@ -47,34 +43,6 @@ public class TestMultipartRequestWrapper extends TestCase {
     protected void setUp() throws Exception {
         base = new MockHttpServletRequest(new MockHttpSession());
         wrapper = new MultipartRequestWrapper(base);
-    }
-
-    /**
-     * RequestProcessor hands the wrapper to the Action in place of the
-     * container's request, so every method of the HttpServletRequest
-     * interface on the runtime classpath must have an implementation.
-     * A missing one throws AbstractMethodError when an Action calls it.
-     */
-    public void testImplementsEveryHttpServletRequestMethod() {
-        Method[] methods = HttpServletRequest.class.getMethods();
-        List missing = new ArrayList();
-        for (int i = 0; i < methods.length; i++) {
-            Method m = methods[i];
-            if (Modifier.isStatic(m.getModifiers())) {
-                continue;
-            }
-            try {
-                Method impl = MultipartRequestWrapper.class.getMethod(
-                        m.getName(), m.getParameterTypes());
-                if (Modifier.isAbstract(impl.getModifiers())) {
-                    missing.add(m.getName());
-                }
-            } catch (NoSuchMethodException e) {
-                missing.add(m.getName());
-            }
-        }
-        assertTrue("Methods without implementation: " + missing,
-                missing.isEmpty());
     }
 
     public void testGetRequest_ReturnsWrappedRequest() {

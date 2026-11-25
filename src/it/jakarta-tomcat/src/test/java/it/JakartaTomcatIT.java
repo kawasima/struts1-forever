@@ -8,6 +8,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 
 import junit.extensions.TestSetup;
 import junit.framework.Test;
@@ -56,6 +58,27 @@ public class JakartaTomcatIT extends TestCase {
 
     public void testWebapp_StartsWithActionServlet() {
         assertEquals(LifecycleState.STARTED, context.getState());
+    }
+
+    public void testWebInfLib_HasJakartaJarAndCommonsIoButNoCommonsFileUpload() {
+        File lib = new File(System.getProperty("webapp.dir"), "WEB-INF/lib");
+        List<String> jars = Arrays.asList(lib.list());
+        assertTrue(jars.toString(), jars.contains(System.getProperty("struts.jar")));
+        assertTrue(jars.toString(), jars.stream().anyMatch(j -> j.startsWith("commons-io-")));
+        assertTrue(jars.toString(), jars.stream().noneMatch(j -> j.startsWith("commons-fileupload")));
+    }
+
+    public void testClasses_AreLoadedFromWebInfLib() throws Exception {
+        String body = get("/provenance.jsp").body();
+        String strutsJar = "/WEB-INF/lib/" + System.getProperty("struts.jar");
+        assertContains(body, "org.apache.struts.action.ActionServlet=");
+        for (String line : body.trim().split("\\R")) {
+            if (line.startsWith("org.apache.commons.io.")) {
+                assertTrue(line, line.matches(".*/WEB-INF/lib/commons-io-[^/]+\\.jar"));
+            } else {
+                assertTrue(line, line.endsWith(strutsJar));
+            }
+        }
     }
 
     public void testEcho_RendersStrutsTagsFromJar() throws Exception {
