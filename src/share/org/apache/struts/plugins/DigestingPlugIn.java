@@ -26,13 +26,15 @@ import javax.servlet.ServletException;
 
 import org.apache.commons.digester.Digester;
 import org.apache.commons.digester.RuleSet;
-import org.apache.commons.digester.xmlrules.DigesterLoader;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.struts.action.ActionServlet;
 import org.apache.struts.action.PlugIn;
 import org.apache.struts.config.ModuleConfig;
+import org.apache.struts.util.DigesterSecurity;
 import org.apache.struts.util.RequestUtils;
+import org.apache.struts.util.SecureDigester;
+import org.apache.struts.util.SecureDigesterLoader;
 import org.xml.sax.SAXException;
 
 /**
@@ -130,6 +132,7 @@ public class DigestingPlugIn implements PlugIn {
                       + this.configPath
                       + ", source: "
                       + this.configSource + "]");
+            DigesterSecurity.secure(digester);
             obj = digester.parse(configURL.openStream());
 
         } catch (IOException e) {
@@ -177,18 +180,6 @@ public class DigestingPlugIn implements PlugIn {
             digester = this.newDigesterInstance();
         }
 
-        try {
-            digester.setFeature(
-                "http://apache.org/xml/features/disallow-doctype-decl", true);
-            digester.setFeature(
-                "http://xml.org/sax/features/external-general-entities", false);
-            digester.setFeature(
-                "http://xml.org/sax/features/external-parameter-entities", false);
-        } catch (Exception e) {
-            throw new ServletException(
-                "Failed to configure XML parser security features", e);
-        }
-
         this.applyRuleSets(digester);
 
         return digester;
@@ -201,12 +192,14 @@ public class DigestingPlugIn implements PlugIn {
      * @return a basic instance of <code>org.apache.commons.digester.Digester</code>
      */
     protected Digester newDigesterInstance() {
-        return new Digester();
+        return new SecureDigester();
     }
 
     /**
-     * <p>Instantiate a Digester from an XML input stream using the Commons
-     * <code>DigesterLoader</code>.</p>
+     * <p>Instantiate a Digester from an XML rules file, as the Commons
+     * <code>DigesterLoader</code> does, with the rules file and every rules
+     * file it includes parsed under the policy of
+     * {@link org.apache.struts.util.DigesterSecurity}.</p>
      * @param path the path to the digester rules XML to be found using <code>source</code>
      * @param source a string indicating the lookup method to be used with <code>path</code>
      * @return a configured Digester
@@ -222,7 +215,7 @@ public class DigestingPlugIn implements PlugIn {
         {
             throw new NullPointerException("No resource '" + path + "' found in '" + source + "'");
         }
-        return DigesterLoader.createDigester(configURL);
+        return SecureDigesterLoader.createDigester(configURL);
     }
 
     /**

@@ -26,6 +26,8 @@ import java.io.InputStream;
 import java.net.URL;
 
 import org.apache.commons.digester.Digester;
+import org.apache.struts.util.DigesterSecurity;
+import org.apache.struts.util.SecureDigester;
 import org.xml.sax.SAXException;
 
 /**
@@ -57,18 +59,7 @@ public class XmlParser
       */
   public XmlParser()
   {
-	digester = new Digester();
-	try {
-	    digester.setFeature(
-	        "http://apache.org/xml/features/disallow-doctype-decl", true);
-	    digester.setFeature(
-	        "http://xml.org/sax/features/external-general-entities", false);
-	    digester.setFeature(
-	        "http://xml.org/sax/features/external-parameter-entities", false);
-	} catch (Exception e) {
-	    throw new RuntimeException(
-	        "Failed to configure XML parser security features", e);
-	}
+	digester = new SecureDigester();
 	digester.setValidating(validating);
 	digester.setNamespaceAware(true);
 	digester.setUseContextClassLoader(true);
@@ -281,6 +272,8 @@ public class XmlParser
   {
 	try
     {
+      // Restrict external resources now that the digester is configured
+    DigesterSecurity.secure(digester);
       // set first object in stack
     //digester.clear();
     digester.push(definitions);

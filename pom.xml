@@ -240,6 +240,64 @@
         </configuration>
       </plugin>
 
+      <!--
+        Declared right after the compiler plugin: the jakarta profile adds
+        executions to this plugin in process-test-classes that must run before
+        the resources and transformer plugins, as they did when only the
+        profile declared it.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.8.1</version>
+        <executions>
+          <!--
+            Apache Xerces versions that applications ship in WEB-INF/lib: 2.6.2
+            without secure processing, 2.12.2 with it. TestDigesterSecurityXerces*
+            load them with their own class loader; on the test class path they
+            would replace the JDK parser for every test.
+          -->
+          <execution>
+            <id>copy-test-parsers</id>
+            <phase>process-test-classes</phase>
+            <goals><goal>copy</goal></goals>
+            <configuration>
+              <skip>${maven.test.skip}</skip>
+              <outputDirectory>${project.build.directory}/test-parsers</outputDirectory>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>xerces</groupId>
+                  <artifactId>xercesImpl</artifactId>
+                  <version>2.6.2</version>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>xerces</groupId>
+                  <artifactId>xercesImpl</artifactId>
+                  <version>2.12.2</version>
+                </artifactItem>
+                <!--
+                  The versions Struts 1.2.9 shipped, which applications may still
+                  have in WEB-INF/lib. TestOldCommonsLibraries runs the XML
+                  parsing tests with them in place of the declared versions.
+                -->
+                <artifactItem>
+                  <groupId>commons-digester</groupId>
+                  <artifactId>commons-digester</artifactId>
+                  <version>1.6</version>
+                  <outputDirectory>${project.build.directory}/test-libs</outputDirectory>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>commons-validator</groupId>
+                  <artifactId>commons-validator</artifactId>
+                  <version>1.1.4</version>
+                  <outputDirectory>${project.build.directory}/test-libs</outputDirectory>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>xml-maven-plugin</artifactId>
@@ -321,11 +379,11 @@
           <includes>
             <include>**/Test*.java</include>
           </includes>
-          <excludes>
-            <!-- Fails until #3 (DOCTYPE rejected) is fixed. -->
-            <exclude>org/apache/struts/tiles/TestTilesPlugin.java</exclude>
-          </excludes>
           <failIfNoTests>true</failIfNoTests>
+          <systemPropertyVariables>
+            <struts.test.parsers>${project.build.directory}/test-parsers</struts.test.parsers>
+            <struts.test.libs>${project.build.directory}/test-libs</struts.test.libs>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
     </plugins>
