@@ -200,12 +200,21 @@ public final class DigesterSecurity {
     }
 
     /**
-     * Make the parser count entity expansions with a limit between 1 and
-     * {@link #MAX_ENTITY_EXPANSIONS}, and read the limit back. Secure
-     * processing is not used: it does not establish this (an explicit limit
-     * of 0, for example from the <code>jdk.xml.entityExpansionLimit</code>
-     * system property, stays in effect with it), and on Apache Xerces it
-     * replaces the security manager and with it any stricter limits.
+     * Make the parser allow at most {@link #MAX_ENTITY_EXPANSIONS} entity
+     * expansions, and read its limit back. A parser that already allows
+     * fewer keeps its limit.
+     *
+     * <p>The JDK parser and Apache Xerces express the limit differently, so
+     * each limit is converted to the number of expansions the parser allows
+     * before it is compared: see {@link #jdkAllowed} and
+     * {@link #xercesAllowed}. A limit that cannot be read is not overwritten,
+     * since it may be stricter; parsing is refused instead.</p>
+     *
+     * <p>Secure processing is not used: it does not establish the limit (an
+     * explicit JDK limit of 0, for example from the
+     * <code>jdk.xml.entityExpansionLimit</code> system property, stays in
+     * effect with it), and on Apache Xerces it replaces the security manager
+     * and with it any stricter limits.</p>
      */
     private static void requireEntityExpansionLimit(XMLReader reader)
             throws SAXException {
@@ -215,6 +224,9 @@ public final class DigesterSecurity {
         throw unsafeParser(reader, "cannot limit entity expansion", null);
     }
 
+    /** Stands for a parser that allows any number of expansions. */
+    private static final long UNLIMITED = Long.MAX_VALUE;
+
     private static boolean limitJdkExpansions(XMLReader reader) throws SAXException {
         Object current;
         try {
@@ -222,22 +234,41 @@ public final class DigesterSecurity {
         } catch (SAXException e) {
             return false;
         }
-        if (!isEffective(toLimit(current))) {
+        if (jdkAllowed(reader, current) > MAX_ENTITY_EXPANSIONS) {
             reader.setProperty(PROPERTY_JDK_ENTITY_EXPANSION_LIMIT,
                 String.valueOf(MAX_ENTITY_EXPANSIONS));
         }
-        int limit = toLimit(reader.getProperty(PROPERTY_JDK_ENTITY_EXPANSION_LIMIT));
-        if (!isEffective(limit)) {
-            throw unsafeParser(reader, "keeps its entity expansion limit at " + limit, null);
+        Object installed = reader.getProperty(PROPERTY_JDK_ENTITY_EXPANSION_LIMIT);
+        if (jdkAllowed(reader, installed) > MAX_ENTITY_EXPANSIONS) {
+            throw unsafeParser(reader, "keeps its entity expansion limit at "
+                + installed, null);
         }
         return true;
     }
 
     /**
-     * Apache Xerces keeps its limits in a SecurityManager. A manager whose
-     * expansion limit is usable is kept. Otherwise it is replaced, not
-     * changed, because the application may share it with other parsers; the
-     * replacement copies every limit of the old manager and lowers only the
+     * The JDK parser allows <code>limit</code> expansions for a positive
+     * limit, and any number for 0 or a negative limit.
+     *
+     * @throws SAXException if the limit is not a number
+     */
+    private static long jdkAllowed(XMLReader reader, Object limit) throws SAXException {
+        int value;
+        try {
+            value = Integer.parseInt(String.valueOf(limit).trim());
+        } catch (NumberFormatException e) {
+            throw unsafeParser(reader, "reports an entity expansion limit that is"
+                + " not a number (" + limit + ")", e);
+        }
+        return value > 0 ? value : UNLIMITED;
+    }
+
+    /**
+     * Apache Xerces keeps its limits in a SecurityManager, and without one it
+     * does not limit expansions at all. A manager that allows few enough
+     * expansions is kept. Otherwise it is replaced, not changed, because the
+     * application may share it with other parsers; the replacement copies
+     * the value of every limit of the old manager and lowers only the
      * expansion limit.
      */
     private static boolean limitXercesExpansions(XMLReader reader) throws SAXException {
@@ -247,7 +278,7 @@ public final class DigesterSecurity {
         } catch (SAXException e) {
             return false;
         }
-        if (current != null && isEffective(xercesLimit(current))) {
+        if (current != null && xercesAllowed(reader, current) <= MAX_ENTITY_EXPANSIONS) {
             return true;
         }
 
@@ -258,9 +289,9 @@ public final class DigesterSecurity {
         reader.setProperty(PROPERTY_XERCES_SECURITY_MANAGER, replacement);
 
         Object installed = reader.getProperty(PROPERTY_XERCES_SECURITY_MANAGER);
-        int limit = xercesLimit(installed);
-        if (!isEffective(limit)) {
-            throw unsafeParser(reader, "keeps its entity expansion limit at " + limit, null);
+        if (installed == null || xercesAllowed(reader, installed) > MAX_ENTITY_EXPANSIONS) {
+            throw unsafeParser(reader, "did not keep the security manager that"
+                + " limits entity expansion", null);
         }
         if (current != null && !sameLimitsExceptExpansion(current, installed)) {
             throw unsafeParser(reader, "did not keep the other limits of its"
@@ -268,6 +299,31 @@ public final class DigesterSecurity {
         }
         return true;
     }
+
+    /**
+     * Apache Xerces reports an error when its expansion count, incremented
+     * after the comparison, exceeds the limit: it allows
+     * <code>limit + 1</code> expansions, and none for a negative limit. A
+     * limit of 0 therefore allows one expansion, not any number.
+     *
+     * @throws SAXException if the limit of the manager cannot be read
+     */
+    private static long xercesAllowed(XMLReader reader, Object manager)
+            throws SAXException {
+        int value;
+        try {
+            Method getter = manager.getClass().getMethod(GET_EXPANSION_LIMIT, new Class[0]);
+            value = ((Integer) getter.invoke(manager, new Object[0])).intValue();
+        } catch (Exception e) {
+            throw unsafeParser(reader, "has a security manager ("
+                + manager.getClass().getName() + ") whose entity expansion limit"
+                + " cannot be read", e);
+        }
+        return value < 0 ? 0 : (long) value + 1;
+    }
+
+    /** Xerces limit under which Xerces allows MAX_ENTITY_EXPANSIONS expansions. */
+    private static final int XERCES_LIMIT = MAX_ENTITY_EXPANSIONS - 1;
 
     /**
      * @param previous the manager to copy limits from, or null
@@ -280,6 +336,8 @@ public final class DigesterSecurity {
                     reader.getClass().getClassLoader());
             Object manager = managerClass.newInstance();
             if (previous != null) {
+                // Copied as values, without interpreting them, so each limit
+                // stays exactly as strict as it was.
                 Method[] getters = intLimitGetters(managerClass);
                 for (int i = 0; i < getters.length; i++) {
                     setter(managerClass, getters[i]).invoke(manager,
@@ -287,7 +345,7 @@ public final class DigesterSecurity {
                 }
             }
             managerClass.getMethod(SET_EXPANSION_LIMIT, new Class[] {int.class})
-                .invoke(manager, new Object[] {new Integer(MAX_ENTITY_EXPANSIONS)});
+                .invoke(manager, new Object[] {new Integer(XERCES_LIMIT)});
             return manager;
         } catch (Exception e) {
             return null;
@@ -316,7 +374,7 @@ public final class DigesterSecurity {
         }
     }
 
-    /** Public int getters that have a matching int setter: the limits. */
+    /** Public int getters that have a matching int setter. */
     private static Method[] intLimitGetters(Class managerClass) {
         Method[] methods = managerClass.getMethods();
         java.util.List getters = new java.util.ArrayList();
@@ -344,36 +402,6 @@ public final class DigesterSecurity {
     private static final String GET_EXPANSION_LIMIT = "getEntityExpansionLimit";
 
     private static final String SET_EXPANSION_LIMIT = "setEntityExpansionLimit";
-
-    /** @return the limit of a Xerces SecurityManager, or 0 if unknown */
-    private static int xercesLimit(Object manager) {
-        if (manager == null) {
-            return 0;
-        }
-        try {
-            Method getter = manager.getClass().getMethod(
-                GET_EXPANSION_LIMIT, new Class[0]);
-            return ((Integer) getter.invoke(manager, new Object[0])).intValue();
-        } catch (Exception e) {
-            return 0;
-        }
-    }
-
-    /** @return the limit, or 0 (unlimited) if it is not a number */
-    private static int toLimit(Object value) {
-        if (value == null) {
-            return 0;
-        }
-        try {
-            return Integer.parseInt(value.toString().trim());
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    private static boolean isEffective(int limit) {
-        return limit > 0 && limit <= MAX_ENTITY_EXPANSIONS;
-    }
 
     /**
      * Install the handler that rejects external general entities and long

@@ -276,6 +276,23 @@ public class TestDigesterSecurity extends TestCase {
         assertRejected(digester, billionLaughs(5, "<root>&e5;</root>"));
     }
 
+    /** An unlimited JDK parser allows exactly MAX_ENTITY_EXPANSIONS expansions. */
+    public void testUnlimitedReader_Secured_AllowsExactlyMaxExpansions() throws Exception {
+        XMLReader reader = newXmlReader();
+        reader.setProperty(JDK_EXPANSION_LIMIT, "0");
+        Digester digester = new Digester(reader);
+        DigesterSecurity.secure(digester);
+
+        digester.parse(stream(references(DigesterSecurity.MAX_ENTITY_EXPANSIONS)));
+        assertRejected(digester, references(DigesterSecurity.MAX_ENTITY_EXPANSIONS + 1));
+    }
+
+    /** A limit that cannot be read may be stricter, so it is not overwritten. */
+    public void testUnreadableJdkLimit_IsRefused() throws Exception {
+        assertRefused(new PolicyTestReader(newXmlReader())
+            .reportUntilSet(JDK_EXPANSION_LIMIT, "abc"));
+    }
+
     /** The policy never relaxes a limit, including ones it does not set. */
     public void testStricterLimits_AreKept() throws Exception {
         XMLReader reader = newXmlReader();
@@ -460,6 +477,15 @@ public class TestDigesterSecurity extends TestCase {
         return doc.append("]>\n").append(body).toString();
     }
 
+    /** A document that refers to one internal entity <code>count</code> times. */
+    static String references(int count) {
+        StringBuffer doc = new StringBuffer("<!DOCTYPE root [<!ENTITY e \"x\">]>\n<root>");
+        for (int i = 0; i < count; i++) {
+            doc.append("&e;");
+        }
+        return doc.append("</root>").toString();
+    }
+
     static String entityOfLength(int length) {
         StringBuffer value = new StringBuffer();
         for (int i = 0; i < length; i++) {
@@ -552,7 +578,7 @@ public class TestDigesterSecurity extends TestCase {
         }
     }
 
-    private static void assertRefused(XMLReader reader) {
+    static void assertRefused(XMLReader reader) {
         try {
             DigesterSecurity.secure(new Digester(reader));
             fail("a reader that cannot follow the policy must not be used");

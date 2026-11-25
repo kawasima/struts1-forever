@@ -39,6 +39,8 @@ class PolicyTestReader implements XMLReader {
     private final Set unrecognized = new HashSet();
     private final Set refused = new HashSet();
     private final Set forcedTrue = new HashSet();
+    private final java.util.Map fixed = new java.util.HashMap();
+    private final java.util.Map untilSet = new java.util.HashMap();
 
     PolicyTestReader(XMLReader delegate) {
         this.delegate = delegate;
@@ -53,6 +55,18 @@ class PolicyTestReader implements XMLReader {
     /** The reader knows the feature but does not let it change. */
     PolicyTestReader refuse(String name) {
         refused.add(name);
+        return this;
+    }
+
+    /** The property always has this value and cannot be changed. */
+    PolicyTestReader fix(String name, Object value) {
+        fixed.put(name, value);
+        return this;
+    }
+
+    /** The property has this value until it is set. */
+    PolicyTestReader reportUntilSet(String name, Object value) {
+        untilSet.put(name, value);
         return this;
     }
 
@@ -83,12 +97,22 @@ class PolicyTestReader implements XMLReader {
     public Object getProperty(String name)
             throws SAXNotRecognizedException, SAXNotSupportedException {
         check(name);
+        if (fixed.containsKey(name)) {
+            return fixed.get(name);
+        }
+        if (untilSet.containsKey(name)) {
+            return untilSet.get(name);
+        }
         return delegate.getProperty(name);
     }
 
     public void setProperty(String name, Object value)
             throws SAXNotRecognizedException, SAXNotSupportedException {
         check(name);
+        if (fixed.containsKey(name)) {
+            return;
+        }
+        untilSet.remove(name);
         delegate.setProperty(name, value);
     }
 

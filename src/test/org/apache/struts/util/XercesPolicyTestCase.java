@@ -166,6 +166,23 @@ public abstract class XercesPolicyTestCase extends TestCase {
             TestDigesterSecurity.billionLaughs(5, "<root>&e5;</root>"));
     }
 
+    /**
+     * Without a security manager Xerces does not limit expansions; the one
+     * Struts installs allows exactly MAX_ENTITY_EXPANSIONS (Xerces allows
+     * limit + 1).
+     */
+    public void testNoSecurityManager_AllowsExactlyMaxExpansions() throws Exception {
+        XMLReader reader = newReader();
+        assertNull(reader.getProperty(SECURITY_MANAGER));
+        Digester digester = new Digester(reader);
+        DigesterSecurity.secure(digester);
+
+        digester.parse(TestDigesterSecurity.stream(
+            TestDigesterSecurity.references(DigesterSecurity.MAX_ENTITY_EXPANSIONS)));
+        TestDigesterSecurity.assertRejected(digester,
+            TestDigesterSecurity.references(DigesterSecurity.MAX_ENTITY_EXPANSIONS + 1));
+    }
+
     /** A manager the application set with a stricter limit is kept as it is. */
     public void testStricterSecurityManager_IsKept() throws Exception {
         XMLReader reader = newReader();
@@ -178,25 +195,42 @@ public abstract class XercesPolicyTestCase extends TestCase {
         assertEquals(new Integer(100), call(strict, "getEntityExpansionLimit"));
     }
 
+    /** For Xerces a limit of 0 allows one expansion; it is not "unlimited". */
+    public void testZeroLimitSecurityManager_IsKept() throws Exception {
+        XMLReader reader = newReader();
+        Object zero = newManager(0, 50);
+        reader.setProperty(SECURITY_MANAGER, zero);
+        Digester digester = new Digester(reader);
+        DigesterSecurity.secure(digester);
+
+        assertSame(zero, reader.getProperty(SECURITY_MANAGER));
+        TestDigesterSecurity.assertRejected(digester, TestDigesterSecurity.references(2));
+    }
+
     /**
-     * A manager the application set without a usable limit is replaced, not
-     * changed, since other parsers may share it, and its other limits are
-     * kept.
+     * A manager that allows more expansions is replaced, not changed, since
+     * other parsers may share it, and its other limits are kept.
      */
-    public void testUnlimitedSecurityManager_IsReplacedKeepingOtherLimits()
+    public void testLooseSecurityManager_IsReplacedKeepingOtherLimits()
             throws Exception {
         XMLReader reader = newReader();
-        Object unlimited = newManager(0, 50);
-        reader.setProperty(SECURITY_MANAGER, unlimited);
+        Object loose = newManager(100000, 50);
+        reader.setProperty(SECURITY_MANAGER, loose);
 
         DigesterSecurity.secure(new Digester(reader));
 
         Object installed = reader.getProperty(SECURITY_MANAGER);
-        assertNotSame(unlimited, installed);
-        assertEquals(new Integer(DigesterSecurity.MAX_ENTITY_EXPANSIONS),
+        assertNotSame(loose, installed);
+        assertEquals(new Integer(DigesterSecurity.MAX_ENTITY_EXPANSIONS - 1),
             call(installed, "getEntityExpansionLimit"));
         assertEquals(new Integer(50), call(installed, "getMaxOccurNodeLimit"));
-        assertEquals(new Integer(0), call(unlimited, "getEntityExpansionLimit"));
+        assertEquals(new Integer(100000), call(loose, "getEntityExpansionLimit"));
+    }
+
+    /** A limit that cannot be read may be stricter, so it is not replaced. */
+    public void testUnreadableSecurityManager_IsRefused() throws Exception {
+        TestDigesterSecurity.assertRefused(
+            new PolicyTestReader(newReader()).fix(SECURITY_MANAGER, new Object()));
     }
 
     private Object newManager(int expansionLimit, int maxOccurLimit) throws Exception {
