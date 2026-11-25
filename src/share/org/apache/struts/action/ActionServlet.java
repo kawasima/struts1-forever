@@ -61,6 +61,7 @@ import org.apache.struts.config.MessageResourcesConfig;
 import org.apache.struts.config.ModuleConfig;
 import org.apache.struts.config.ModuleConfigFactory;
 import org.apache.struts.config.PlugInConfig;
+import org.apache.struts.util.DigesterSecurity;
 import org.apache.struts.util.MessageResources;
 import org.apache.struts.util.MessageResourcesFactory;
 import org.apache.struts.util.ModuleUtils;
@@ -733,6 +734,7 @@ public class ActionServlet extends HttpServlet {
             InputSource is = new InputSource(url.toExternalForm());
             input = url.openStream();
             is.setByteStream(input);
+            DigesterSecurity.secure(digester);
             digester.parse(is);
 
         } catch (MalformedURLException e) {
@@ -948,7 +950,6 @@ public class ActionServlet extends HttpServlet {
 
         // Create a new Digester instance with standard capabilities
         configDigester = new Digester();
-        configureDigesterSecurity(configDigester);
         configDigester.setNamespaceAware(true);
         configDigester.setValidating(this.isValidating());
         configDigester.setUseContextClassLoader(true);
@@ -1027,28 +1028,6 @@ public class ActionServlet extends HttpServlet {
         }
 
         return validating;
-    }
-
-
-    /**
-     * Configure XXE-prevention features on the given Digester.
-     *
-     * @param digester the Digester instance to harden
-     * @throws ServletException if the XML parser does not support the required features
-     */
-    private static void configureDigesterSecurity(Digester digester)
-            throws ServletException {
-        try {
-            digester.setFeature(
-                "http://apache.org/xml/features/disallow-doctype-decl", true);
-            digester.setFeature(
-                "http://xml.org/sax/features/external-general-entities", false);
-            digester.setFeature(
-                "http://xml.org/sax/features/external-parameter-entities", false);
-        } catch (Exception e) {
-            throw new ServletException(
-                "Failed to configure XML parser security features", e);
-        }
     }
 
 
@@ -1138,7 +1117,6 @@ public class ActionServlet extends HttpServlet {
 
         // Prepare a Digester to scan the web application deployment descriptor
         Digester digester = new Digester();
-        configureDigesterSecurity(digester);
         digester.push(this);
         digester.setNamespaceAware(true);
         digester.setValidating(false);
@@ -1171,6 +1149,7 @@ public class ActionServlet extends HttpServlet {
         }
 
         try {
+            DigesterSecurity.secure(digester);
             digester.parse(input);
 
         } catch (IOException e) {

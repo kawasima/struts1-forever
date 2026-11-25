@@ -32,6 +32,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.struts.action.ActionServlet;
 import org.apache.struts.action.PlugIn;
 import org.apache.struts.config.ModuleConfig;
+import org.apache.struts.util.DigesterSecurity;
 import org.apache.struts.util.RequestUtils;
 import org.xml.sax.SAXException;
 
@@ -130,6 +131,7 @@ public class DigestingPlugIn implements PlugIn {
                       + this.configPath
                       + ", source: "
                       + this.configSource + "]");
+            DigesterSecurity.secure(digester);
             obj = digester.parse(configURL.openStream());
 
         } catch (IOException e) {
@@ -177,18 +179,6 @@ public class DigestingPlugIn implements PlugIn {
             digester = this.newDigesterInstance();
         }
 
-        try {
-            digester.setFeature(
-                "http://apache.org/xml/features/disallow-doctype-decl", true);
-            digester.setFeature(
-                "http://xml.org/sax/features/external-general-entities", false);
-            digester.setFeature(
-                "http://xml.org/sax/features/external-parameter-entities", false);
-        } catch (Exception e) {
-            throw new ServletException(
-                "Failed to configure XML parser security features", e);
-        }
-
         this.applyRuleSets(digester);
 
         return digester;
@@ -222,7 +212,18 @@ public class DigestingPlugIn implements PlugIn {
         {
             throw new NullPointerException("No resource '" + path + "' found in '" + source + "'");
         }
-        return DigesterLoader.createDigester(configURL);
+        // The rules file is parsed while the Digester is created, so the
+        // Digester that parses it is secured beforehand.
+        Digester rulesDigester = new Digester();
+        try {
+            DigesterSecurity.secure(rulesDigester);
+        } catch (SAXException e) {
+            IOException ioe = new IOException(
+                "Cannot secure the parser for digester rules: " + e.getMessage());
+            ioe.initCause(e);
+            throw ioe;
+        }
+        return DigesterLoader.createDigester(configURL, rulesDigester);
     }
 
     /**

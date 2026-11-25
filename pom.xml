@@ -321,10 +321,6 @@
           <includes>
             <include>**/Test*.java</include>
           </includes>
-          <excludes>
-            <!-- Fails until #3 (DOCTYPE rejected) is fixed. -->
-            <exclude>org/apache/struts/tiles/TestTilesPlugin.java</exclude>
-          </excludes>
           <failIfNoTests>true</failIfNoTests>
         </configuration>
       </plugin>

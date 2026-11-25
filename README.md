@@ -45,6 +45,14 @@ The jakarta JAR bundles Commons FileUpload 1.6.0, converted to `jakarta.servlet`
 </dependency>
 ```
 
+## External resources in XML files
+
+Struts parses `web.xml`, `struts-config.xml`, Tiles definition files and the files read by `DigestingPlugIn` (including its digester rules file). A `DOCTYPE` declaration is allowed in all of them. The parser reads an external DTD or entity only from a local copy that is registered with `Digester.register()`, or from an `EntityResolver` set on the `Digester`. It never opens the system identifier written in the document.
+
+The local copies registered by default are the Struts Configuration 1.0, 1.1 and 1.2 DTDs, the Servlet 2.2 and 2.3 Web Application DTDs, the Tiles Configuration 1.1 DTD and the Commons Digester rules DTD. A rules file that a digester rules file includes with `<include path="..."/>` is a class path resource, and Commons Digester parses it without this restriction.
+
+A document whose `DOCTYPE` refers to any other external DTD fails to parse, and external entities declared in a document are not expanded. Up to 1.2.9-forever-2 the parser downloaded such a DTD from its system identifier. If your files use a DTD of your own, register a local copy, for example in `DigestingPlugIn.newDigesterInstance()`, or remove the `DOCTYPE`.
+
 ## Fixed vulnerabilities
 
 - CVE-2014-0114
