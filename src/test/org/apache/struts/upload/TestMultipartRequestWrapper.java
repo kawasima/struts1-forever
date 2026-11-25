@@ -16,10 +16,18 @@
 
 package org.apache.struts.upload;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import javax.servlet.ServletRequest;
+import javax.servlet.http.HttpSession;
 
 import junit.framework.TestCase;
 
@@ -104,5 +112,115 @@ public class TestMultipartRequestWrapper extends TestCase {
 
     public void testGetSession_IsDelegatedToWrappedRequest() {
         assertSame(base.getSession(), wrapper.getSession());
+    }
+
+    /**
+     * Filters often wrap the request and override only getParameter,
+     * getParameterNames and getParameterValues. The merged map must be built
+     * from those methods, not from the wrapped request's getParameterMap.
+     */
+    public void testGetParameterMap_ReadsRequestThroughNamesAndValues() {
+        MockHttpServletRequest filtered = new MockHttpServletRequest(new MockHttpSession()) {
+            public String getParameter(String name) {
+                return "q".equals(name) ? "filtered" : null;
+            }
+            public Enumeration getParameterNames() {
+                return Collections.enumeration(Collections.singleton("q"));
+            }
+            public String[] getParameterValues(String name) {
+                return "q".equals(name) ? new String[] {"filtered"} : null;
+            }
+        };
+        MultipartRequestWrapper w = new MultipartRequestWrapper(filtered);
+        w.setParameter("title", "hello");
+
+        Map map = w.getParameterMap();
+        assertEquals("filtered", ((String[]) map.get("q"))[0]);
+        assertEquals("hello", ((String[]) map.get("title"))[0]);
+    }
+
+    // setRequest(ServletRequest) exists only in the jakarta class, which
+    // inherits it from ServletRequestWrapper. Containers call it on forward
+    // and include.
+
+    public void testSetRequest_HttpRequest_ReplacesDelegateForAllMethods()
+            throws Exception {
+        if (!setRequestRequired()) {
+            return;
+        }
+        base.addParameter("a", "1");
+        base.setAttribute("k", "1");
+        wrapper.setParameter("title", "hello");
+        HttpSession otherSession = new MockHttpSession();
+        MockHttpServletRequest other = new MockHttpServletRequest(otherSession);
+        other.addParameter("a", "2");
+        other.setAttribute("k", "2");
+
+        setRequest(wrapper, other);
+
+        assertSame(other, wrapper.getRequest());
+        assertEquals("2", wrapper.getParameter("a"));
+        assertEquals("2", wrapper.getParameterValues("a")[0]);
+        assertEquals("2", ((String[]) wrapper.getParameterMap().get("a"))[0]);
+        assertEquals("2", wrapper.getAttribute("k"));
+        assertSame(otherSession, wrapper.getSession());
+        assertEquals("hello", wrapper.getParameter("title"));
+    }
+
+    public void testSetRequest_Null_IsRejectedAndKeepsDelegate()
+            throws Exception {
+        assertRejectedAndDelegateKept(null);
+    }
+
+    public void testSetRequest_NonHttpRequest_IsRejectedAndKeepsDelegate()
+            throws Exception {
+        ServletRequest plain = (ServletRequest) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class[] {ServletRequest.class},
+                new InvocationHandler() {
+                    public Object invoke(Object proxy, Method method, Object[] args) {
+                        return null;
+                    }
+                });
+        assertRejectedAndDelegateKept(plain);
+    }
+
+    private void assertRejectedAndDelegateKept(ServletRequest replacement)
+            throws Exception {
+        if (!setRequestRequired()) {
+            return;
+        }
+        base.addParameter("a", "1");
+        base.setAttribute("k", "1");
+        try {
+            setRequest(wrapper, replacement);
+            fail("setRequest accepted " + replacement);
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+        assertSame(base, wrapper.getRequest());
+        assertEquals("1", wrapper.getParameter("a"));
+        assertEquals("1", wrapper.getAttribute("k"));
+        assertSame(base.getSession(), wrapper.getSession());
+    }
+
+    /** True in the jakarta build, where the method must exist. */
+    private static boolean setRequestRequired() {
+        return ServletRequest.class.getName().startsWith("jakarta.");
+    }
+
+    private static void setRequest(MultipartRequestWrapper w, ServletRequest r)
+            throws Exception {
+        Method m = MultipartRequestWrapper.class.getMethod(
+                "setRequest", new Class[] {ServletRequest.class});
+        try {
+            m.invoke(w, new Object[] {r});
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getTargetException();
+            if (cause instanceof Exception) {
+                throw (Exception) cause;
+            }
+            throw (Error) cause;
+        }
     }
 }

@@ -769,6 +769,7 @@
               <goals><goal>verify</goal></goals>
               <streamLogsOnFailures>true</streamLogsOnFailures>
               <failIfNoProjects>true</failIfNoProjects>
+              <timeoutInSeconds>1200</timeoutInSeconds>
             </configuration>
             <executions>
               <execution>

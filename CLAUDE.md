@@ -52,7 +52,7 @@ The sources are written against `javax.servlet` only. On JDK 17+ the `jakarta` p
 - packages `target/struts-<version>-jakarta.jar` (classes transformed by Eclipse Transformer, with commons-fileupload bundled),
 - runs `src/it/jakarta-tomcat` with maven-invoker-plugin in `mvn verify`, which deploys that JAR to an embedded Tomcat 10.1.
 
-A change is not done until all of these pass. If a test passes under javax and fails under jakarta, the cause is usually a Servlet/JSP API method that was removed in Servlet 6.0 or added after Servlet 2.2; `TestServletApiCompatibility` lists every class, method and field that does not link.
+A change is not done until all of these pass. If a test passes under javax and fails under jakarta, the cause is usually a Servlet/JSP API method that was removed in Servlet 6.0 or added after Servlet 2.2; `TestServletApiCompatibility` lists every class, method and field that does not link. Its checks live in `ServletApiLinkChecker`; a change there needs a fixture test in `TestServletApiLinkChecker` that fails without it.
 
 On JDK 8–16 the profile is inactive and only the javax build runs.
 

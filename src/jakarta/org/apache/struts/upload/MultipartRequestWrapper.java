@@ -48,6 +48,10 @@ import org.apache.commons.logging.LogFactory;
  * use {@link #getRequest()} and {@link #setRequest(ServletRequest)}.</li>
  * <li>{@link #setRequest(ServletRequest)} accepts only an
  * {@code HttpServletRequest}.</li>
+ * <li>{@link #getRealPath(String)} and {@link #isRequestedSessionIdFromUrl()}
+ * cannot delegate to the method of the same name, which Servlet 6.0
+ * removed. Every other method reads the wrapped request through the same
+ * methods as the javax class.</li>
  * </ul>
  *
  * <p>Parameter merging is shared with the javax class through
@@ -104,8 +108,20 @@ public class MultipartRequestWrapper extends HttpServletRequestWrapper {
                 getRequest().getParameterValues(name), parameters, name);
     }
 
+    /**
+     * Reads the wrapped request through getParameterNames() and
+     * getParameterValues(), like the javax class, so that request wrappers
+     * that override only those methods are honoured.
+     */
     public Map getParameterMap() {
-        return MultipartParameters.map(parameters, getRequest().getParameterMap());
+        HttpServletRequest request = getRequest();
+        Map requestParameters = new HashMap();
+        Enumeration names = request.getParameterNames();
+        while (names.hasMoreElements()) {
+            String name = (String) names.nextElement();
+            requestParameters.put(name, request.getParameterValues(name));
+        }
+        return MultipartParameters.map(parameters, requestParameters);
     }
 
     /**

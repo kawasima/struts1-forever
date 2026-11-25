@@ -95,6 +95,7 @@
           <classesDirectory>${project.build.directory}/no-classes</classesDirectory>
           <classpathDependencyScopeExclude>compile+runtime</classpathDependencyScopeExclude>
           <failIfNoTests>true</failIfNoTests>
+          <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
           <systemPropertyVariables>
             <struts.jar>struts-@project.version@-jakarta.jar</struts.jar>
             <webapp.dir>${project.build.directory}/${project.build.finalName}</webapp.dir>

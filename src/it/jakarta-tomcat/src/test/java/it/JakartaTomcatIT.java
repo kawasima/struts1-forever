@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 
@@ -50,10 +51,15 @@ public class JakartaTomcatIT extends TestCase {
         };
     }
 
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+
     private HttpClient client;
 
     protected void setUp() {
-        client = HttpClient.newBuilder().cookieHandler(new CookieManager()).build();
+        client = HttpClient.newBuilder()
+                .connectTimeout(TIMEOUT)
+                .cookieHandler(new CookieManager())
+                .build();
     }
 
     public void testWebapp_StartsWithActionServlet() {
@@ -117,6 +123,7 @@ public class JakartaTomcatIT extends TestCase {
         write(form, "--" + boundary + "--\r\n");
 
         HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl + "/upload.do"))
+                .timeout(TIMEOUT)
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(form.toByteArray()))
                 .build();
@@ -128,7 +135,9 @@ public class JakartaTomcatIT extends TestCase {
     }
 
     private HttpResponse<String> get(String path) throws Exception {
-        HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl + path)).build();
+        HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl + path))
+                .timeout(TIMEOUT)
+                .build();
         return client.send(req, HttpResponse.BodyHandlers.ofString());
     }
 
