@@ -399,6 +399,7 @@
         <directory>${basedir}/src/share</directory>
         <includes>
           <include>**/*.properties</include>
+          <include>org/apache/commons/validator/javascript/*.js</include>
         </includes>
       </resource>
     </resources>

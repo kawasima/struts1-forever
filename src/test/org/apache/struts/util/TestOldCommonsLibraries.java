@@ -15,21 +15,27 @@
  */
 package org.apache.struts.util;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.StringTokenizer;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 import junit.framework.TestCase;
 
 /**
  * Applications may still have the Commons Digester 1.6 and Commons Validator
  * 1.1.4 that Struts 1.2.9 shipped in <code>WEB-INF/lib</code>. This runs the
- * XML parsing tests with those versions in place of the declared ones, in a
- * class loader of their own.
+ * XML parsing and <code>&lt;html:javascript&gt;</code> tests with those
+ * versions in place of the declared ones, in a class loader of their own,
+ * and checks that the validator scripts in Struts match those of Commons
+ * Validator 1.1.4.
  *
  * <p>The Maven build copies the old JARs to the directory in the system
  * property <code>struts.test.libs</code>.</p>
@@ -43,7 +49,10 @@ public class TestOldCommonsLibraries extends TestCase {
         "org.apache.struts.tiles.xmlDefinition.TestXmlParser",
         "org.apache.struts.tiles.TestTilesPlugin",
         "org.apache.struts.validator.TestValidatorResourcesLoader",
+        "org.apache.struts.taglib.html.TestJavascriptValidatorTagDefaultRules",
     };
+
+    private static final String JAVASCRIPT_PATH = "org/apache/commons/validator/javascript/";
 
     private static final String DIGESTER_JAR = "commons-digester-1.6.jar";
     private static final String VALIDATOR_JAR = "commons-validator-1.1.4.jar";
@@ -79,6 +88,40 @@ public class TestOldCommonsLibraries extends TestCase {
 
         assertEquals("", failures.toString());
         assertTrue("tests run: " + run, run > 50);
+    }
+
+    public void testJavascript_SameAsInValidator114() throws Exception {
+        ClassLoader loader = oldLibraryLoader();
+        URL validatorJar = oldJar(System.getProperty("struts.test.libs"), VALIDATOR_JAR);
+        JarFile jar = new JarFile(new File(validatorJar.getFile()));
+        int compared = 0;
+        try {
+            Enumeration entries = jar.entries();
+            while (entries.hasMoreElements()) {
+                String name = ((JarEntry) entries.nextElement()).getName();
+                if (!name.startsWith(JAVASCRIPT_PATH) || !name.endsWith(".js")) {
+                    continue;
+                }
+                Enumeration copies = loader.getResources(name);
+                URL inValidator = null;
+                URL inStruts = null;
+                while (copies.hasMoreElements()) {
+                    URL copy = (URL) copies.nextElement();
+                    if (copy.toString().indexOf(VALIDATOR_JAR) >= 0) {
+                        inValidator = copy;
+                    } else {
+                        inStruts = copy;
+                    }
+                }
+                assertNotNull(name, inValidator);
+                assertNotNull(name, inStruts);
+                assertEquals(name, read(inValidator), read(inStruts));
+                compared++;
+            }
+        } finally {
+            jar.close();
+        }
+        assertEquals(14, compared);
     }
 
     /**
@@ -123,6 +166,24 @@ public class TestOldCommonsLibraries extends TestCase {
         String location = loader.loadClass(className)
             .getProtectionDomain().getCodeSource().getLocation().toString();
         assertTrue(className + " from " + location, location.endsWith(jar));
+    }
+
+    /**
+     * The lines of the resource, without line terminators.
+     */
+    private static String read(URL url) throws Exception {
+        BufferedReader reader =
+            new BufferedReader(new InputStreamReader(url.openStream(), "ISO-8859-1"));
+        StringBuffer text = new StringBuffer();
+        try {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                text.append(line).append('\n');
+            }
+        } finally {
+            reader.close();
+        }
+        return text.toString();
     }
 
     private static Object call(Object target, String method) throws Exception {
