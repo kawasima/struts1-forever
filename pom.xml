@@ -398,5 +398,169 @@
         </plugins>
       </build>
     </profile>
+    <!--
+      Jakarta EE 9+ variant, published as the "jakarta" classifier.
+
+      The sources stay on javax.servlet. In prepare-package the compiled
+      classes are copied together with the unpacked commons-fileupload 1.x
+      classes into target/jakarta-classes, and Eclipse Transformer rewrites
+      javax.servlet to jakarta.servlet in place. commons-fileupload is bundled
+      under its original package name (not relocated) because
+      CommonsMultipartRequestHandler exposes FileItem in protected methods.
+
+      The test suite is transformed the same way and run again against the
+      Jakarta Servlet 6.0 / JSP 3.1 APIs.
+
+      Eclipse Transformer 1.0.0 requires JDK 17, so this profile is only
+      active on JDK 17+. Classes are compiled with release=8 there.
+    -->
+    <profile>
+      <id>jakarta</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <properties>
+        <jakarta.classes>${project.build.directory}/jakarta-classes</jakarta.classes>
+        <jakarta.test-classes>${project.build.directory}/jakarta-test-classes</jakarta.test-classes>
+      </properties>
+      <dependencies>
+        <dependency>
+          <groupId>jakarta.servlet</groupId>
+          <artifactId>jakarta.servlet-api</artifactId>
+          <version>6.0.0</version>
+          <scope>test</scope>
+        </dependency>
+        <dependency>
+          <groupId>jakarta.servlet.jsp</groupId>
+          <artifactId>jakarta.servlet.jsp-api</artifactId>
+          <version>3.1.1</version>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-dependency-plugin</artifactId>
+            <version>3.8.1</version>
+            <executions>
+              <execution>
+                <id>jakarta-unpack-fileupload</id>
+                <phase>prepare-package</phase>
+                <goals><goal>unpack</goal></goals>
+                <configuration>
+                  <artifactItems>
+                    <artifactItem>
+                      <groupId>commons-fileupload</groupId>
+                      <artifactId>commons-fileupload</artifactId>
+                      <outputDirectory>${jakarta.classes}</outputDirectory>
+                      <excludes>META-INF/MANIFEST.MF,META-INF/maven/**</excludes>
+                    </artifactItem>
+                  </artifactItems>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-resources-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>jakarta-copy-classes</id>
+                <phase>prepare-package</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <outputDirectory>${jakarta.classes}</outputDirectory>
+                  <resources>
+                    <resource>
+                      <directory>${project.build.outputDirectory}</directory>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+              <execution>
+                <id>jakarta-copy-test-classes</id>
+                <phase>prepare-package</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <skip>${maven.test.skip}</skip>
+                  <outputDirectory>${jakarta.test-classes}</outputDirectory>
+                  <resources>
+                    <resource>
+                      <directory>${project.build.testOutputDirectory}</directory>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.eclipse.transformer</groupId>
+            <artifactId>transformer-maven-plugin</artifactId>
+            <version>1.0.0</version>
+            <configuration>
+              <rules>
+                <jakartaDefaults>true</jakartaDefaults>
+              </rules>
+            </configuration>
+            <executions>
+              <execution>
+                <id>jakarta-transform-classes</id>
+                <phase>prepare-package</phase>
+                <goals><goal>transform</goal></goals>
+                <configuration>
+                  <transformDirectory>${jakarta.classes}</transformDirectory>
+                </configuration>
+              </execution>
+              <execution>
+                <id>jakarta-transform-test-classes</id>
+                <phase>prepare-package</phase>
+                <goals><goal>transform</goal></goals>
+                <configuration>
+                  <skip>${maven.test.skip}</skip>
+                  <transformDirectory>${jakarta.test-classes}</transformDirectory>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>jakarta-test</id>
+                <phase>prepare-package</phase>
+                <goals><goal>test</goal></goals>
+                <configuration>
+                  <classesDirectory>${jakarta.classes}</classesDirectory>
+                  <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
+                  <reportsDirectory>${project.build.directory}/surefire-reports-jakarta</reportsDirectory>
+                  <classpathDependencyExcludes>
+                    <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
+                  </classpathDependencyExcludes>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <version>3.5.0</version>
+            <executions>
+              <execution>
+                <id>jakarta-jar</id>
+                <phase>package</phase>
+                <goals><goal>jar</goal></goals>
+                <configuration>
+                  <classifier>jakarta</classifier>
+                  <classesDirectory>${jakarta.classes}</classesDirectory>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
 </project>
