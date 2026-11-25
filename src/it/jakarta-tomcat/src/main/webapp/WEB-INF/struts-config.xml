@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  No DOCTYPE: since GHSA-h36r-7whm-p5hf, ActionServlet parses with
-  disallow-doctype-decl=true and rejects any DOCTYPE, including the standard
-  Struts DTD declaration. Validation is turned off in web.xml for the same
-  reason.
+  No DOCTYPE, and validation is turned off in web.xml: ActionServlet
+  currently rejects any DOCTYPE (#3). Restore the standard declaration and
+  remove the validating=false init-param when #3 is fixed.
 -->
 <struts-config>
   <form-beans>
