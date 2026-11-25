@@ -903,6 +903,14 @@ public abstract class BaseHandlerTag extends BodyTagSupport {
      * compared with a form property, with <code>TagUtils.filter()</code> before
      * passing it.</p>
      *
+     * <p>An event handler is JavaScript inside an attribute, and the browser
+     * decodes character references in it before running it. To put data into
+     * a handler, escape it for a JavaScript string literal, build the code,
+     * and then escape the code with <code>TagUtils.filter()</code>; the
+     * references that this writes are kept, so the browser runs the code as
+     * built. Escaping for JavaScript alone is not enough, because a
+     * reference in the data would be decoded into the code.</p>
+     *
      * @param handlers The StringBuffer that output will be appended to.
      */
     protected void prepareAttribute(StringBuffer handlers, String name, Object value) {

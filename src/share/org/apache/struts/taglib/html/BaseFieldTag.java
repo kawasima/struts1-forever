@@ -93,7 +93,7 @@ public abstract class BaseFieldTag extends BaseInputTag {
         StringBuffer results = new StringBuffer("<input");
 
         prepareAttribute(results, "type", this.type);
-        prepareAttribute(results, "name", prepareName());
+        prepareAttribute(results, "name", TagUtils.getInstance().filter(prepareName()));
         prepareAttribute(results, "accesskey", getAccesskey());
         prepareAttribute(results, "accept", getAccept());
         prepareAttribute(results, "maxlength", getMaxlength());

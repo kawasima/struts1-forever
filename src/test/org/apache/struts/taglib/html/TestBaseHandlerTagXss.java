@@ -33,9 +33,11 @@ import org.apache.struts.mock.MockServletContext;
  * and <code>&gt;</code> are escaped.
  *
  * <p>This keeps user data from adding attributes or elements. It does not make
- * data safe inside an event handler: the browser decodes the attribute before
- * running it, so data placed in JavaScript must be escaped for JavaScript by
- * the application. Character references in values are kept (issue #4); see
+ * data safe inside an event handler. The handler is JavaScript in an HTML
+ * attribute, and the browser decodes the attribute before running it, so the
+ * application escapes data for a JavaScript string literal and then escapes
+ * the code it built with <code>TagUtils.filter()</code>. Character references
+ * in values are kept (issue #4), so the browser runs that code as built; see
  * {@link TestAttributeValueEncoding}.</p>
  */
 public class TestBaseHandlerTagXss extends TestCase {

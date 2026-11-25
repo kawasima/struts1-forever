@@ -154,7 +154,7 @@ public class SubmitTag extends BaseHandlerTag {
         // Generate an HTML element
         StringBuffer results = new StringBuffer();
         results.append(getElementOpen());
-        prepareAttribute(results, "name", prepareName());
+        prepareAttribute(results, "name", TagUtils.getInstance().filter(prepareName()));
         prepareButtonAttributes(results);
         results.append(prepareEventHandlers());
         results.append(prepareStyles());

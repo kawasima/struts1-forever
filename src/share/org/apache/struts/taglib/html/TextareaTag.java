@@ -61,7 +61,7 @@ public class TextareaTag extends BaseInputTag {
     protected String renderTextareaElement() throws JspException {
         StringBuffer results = new StringBuffer("<textarea");
         
-        prepareAttribute(results, "name", prepareName());
+        prepareAttribute(results, "name", TagUtils.getInstance().filter(prepareName()));
         prepareAttribute(results, "accesskey", getAccesskey());
         prepareAttribute(results, "tabindex", getTabindex());
         prepareAttribute(results, "cols", getCols());

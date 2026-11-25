@@ -202,7 +202,7 @@ public class TestOptionTag extends TestCase {
     }
 
     // ------------------------------------------------------------------
-    // Character references — the label and value are HTML (issue #4)
+    // Character references — HTML labels and data values (issue #4)
     // ------------------------------------------------------------------
 
     /** &nbsp; and &eacute; display as they did in 1.2.9-forever-2. */
@@ -224,6 +224,60 @@ public class TestOptionTag extends TestCase {
         output = runOptionTagSelecting("a&amp;b", "a&amp;b");
         assertEquals("a&amp;b", TestAttributeValueEncoding.attribute(output, "value"));
         assertTrue(output, output.contains("selected=\"selected\""));
+    }
+
+    /**
+     * Without body text or a key the value is shown as the label. It is
+     * still data, so the label shows exactly what the browser submits.
+     */
+    public void testLabel_WithoutTextOrKey_ShowsTheValueAsGiven() throws Exception {
+        String[] values = {"A&B", "A&amp;B", "&copy;", "&#65;"};
+        for (int i = 0; i < values.length; i++) {
+            String output = runOptionTag(values[i], null);
+            assertEquals(values[i], TestAttributeValueEncoding.attribute(output, "value"));
+            assertEquals(values[i], label(output));
+        }
+    }
+
+    /** Body text is HTML even when it is the same string as the value. */
+    public void testText_EqualToTheValue_IsHtml() throws Exception {
+        String output = runOptionTag("A&amp;B", "A&amp;B");
+        assertEquals("A&amp;B", TestAttributeValueEncoding.attribute(output, "value"));
+        assertEquals("A&B", label(output));
+    }
+
+    /** A label from an overridden text() is HTML, as it was before. */
+    public void testText_FromSubclass_IsHtml() throws Exception {
+        stubSelectTag();
+        OptionTag tag = new OptionTag() {
+            protected String text() {
+                return "A&amp;B";
+            }
+        };
+        tag.setPageContext(pageContext);
+        tag.setValue("v");
+        assertEquals("A&B", label(tag.renderOptionElement()));
+    }
+
+    /** A subclass that falls back on super.text() gets the value as data. */
+    public void testText_FromSubclassFallingBackOnTheValue_IsData() throws Exception {
+        stubSelectTag();
+        OptionTag tag = new OptionTag() {
+            protected String text() throws JspException {
+                return super.text();
+            }
+        };
+        tag.setPageContext(pageContext);
+        tag.setValue("A&amp;B");
+        assertEquals("A&amp;B", label(tag.renderOptionElement()));
+    }
+
+    /** The label of the option element, decoded as the browser reads it. */
+    private static String label(String html) {
+        int start = html.indexOf('>') + 1;
+        int end = html.indexOf("</option>");
+        assertTrue(html, start > 0 && end >= start);
+        return TestAttributeValueEncoding.decode(html.substring(start, end));
     }
 
     private String runOptionTagSelecting(String value, String selected) throws Exception {

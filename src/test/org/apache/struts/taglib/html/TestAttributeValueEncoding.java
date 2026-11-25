@@ -17,9 +17,7 @@ package org.apache.struts.taglib.html;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import javax.servlet.jsp.PageContext;
 
@@ -41,8 +39,8 @@ import org.apache.struts.mock.MockServletContext;
  * values that are data, such as the value a form submits, are escaped once.
  * A raw quote cannot end an attribute either way.
  *
- * <p>Assertions decode attributes as a browser does (see {@link #attribute})
- * and compare what the browser reads, not the markup.</p>
+ * <p>Assertions decode the character references the tags write (see
+ * {@link #decode}) and compare what the browser reads, not the markup.</p>
  */
 public class TestAttributeValueEncoding extends TestCase {
 
@@ -179,9 +177,57 @@ public class TestAttributeValueEncoding extends TestCase {
         assertTrue(output, output.indexOf("checked=\"checked\"") >= 0);
     }
 
+    /**
+     * The name is the request parameter that the form property is populated
+     * from, so it is data as well.
+     */
+    public void testName_IsSubmittedAsGiven() throws Exception {
+        RadioTag radio = new RadioTag();
+        radio.setPageContext(pageContext);
+        radio.setProperty("map(A&amp;B)");
+        assertEquals("map(A&amp;B)",
+            attribute(radio.renderRadioElement("v", ""), "name"));
+
+        SubmitTag submit = new SubmitTag();
+        submit.setPageContext(pageContext);
+        submit.setProperty("map(A&amp;B)");
+        submit.doEndTag();
+        assertEquals("map(A&amp;B)", attribute(out.getContent(), "name"));
+    }
+
     // ------------------------------------------------------------------
     // Values that page authors write as HTML
     // ------------------------------------------------------------------
+
+    /**
+     * The label of a submit button is HTML, as in 1.2.9-forever-2, so that
+     * existing pages display as before. The browser submits the decoded
+     * label, so a LookupDispatchAction key whose message contains a
+     * character reference does not match it, as in 1.2.9.
+     */
+    public void testSubmitValue_IsHtml() throws Exception {
+        SubmitTag tag = new SubmitTag();
+        tag.setPageContext(pageContext);
+        tag.setValue("Save &amp; Close");
+
+        tag.doEndTag();
+
+        assertEquals("Save & Close", attribute(out.getContent(), "value"));
+    }
+
+    /**
+     * Data in an event handler is escaped for a JavaScript string, and the
+     * code built from it is escaped with filter(); the browser then runs the
+     * code as built, even if the data contains a character reference.
+     */
+    public void testOnclick_CodeEscapedWithFilter_RunsAsBuilt() throws Exception {
+        String code = "show('&#39;);alert(1);//')";
+        StringBuffer results = new StringBuffer();
+        new TextTag().prepareAttribute(results, "onclick",
+            org.apache.struts.taglib.TagUtils.getInstance().filter(code));
+
+        assertEquals(code, attribute(results.toString(), "onclick"));
+    }
 
     public void testOnclick_WithCharacterReferences_KeepsItsMeaning() throws Exception {
         StringBuffer results = new StringBuffer();
@@ -243,19 +289,24 @@ public class TestAttributeValueEncoding extends TestCase {
         return results.toString();
     }
 
-    /** Checks the path and the set of query parameters of a decoded URL. */
+    /**
+     * Checks the path and the query parameters of a decoded URL, in any
+     * order but counting repeated parameters.
+     */
     private static void assertUrl(String path, String[] parameters, String url) {
         int question = url.indexOf('?');
         assertTrue(url, question > 0);
         assertEquals(url, path, url.substring(0, question));
-        Set actual = new HashSet(Arrays.asList(url.substring(question + 1).split("&")));
-        assertEquals(url, new HashSet(Arrays.asList(parameters)), actual);
+        String[] actual = url.substring(question + 1).split("&");
+        String[] expected = (String[]) parameters.clone();
+        Arrays.sort(actual);
+        Arrays.sort(expected);
+        assertEquals(url, Arrays.asList(expected), Arrays.asList(actual));
     }
 
     /**
      * The value of the first double-quoted attribute <code>name</code> in
-     * <code>html</code>, with character references decoded as a browser
-     * decodes them.
+     * <code>html</code>, decoded with {@link #decode}.
      */
     static String attribute(String html, String name) {
         String start = " " + name + "=\"";
@@ -267,7 +318,14 @@ public class TestAttributeValueEncoding extends TestCase {
         return decode(html.substring(from, end));
     }
 
-    private static String decode(String value) {
+    /**
+     * Decodes the character references that <code>TagUtils.filter()</code>
+     * and <code>LegacyMarkup.escape()</code> write: <code>&amp;amp;</code>,
+     * <code>&amp;quot;</code>, <code>&amp;lt;</code>, <code>&amp;gt;</code>
+     * and decimal references below U+10000. Any other reference is left as
+     * it is. This is not a general-purpose HTML decoder.
+     */
+    static String decode(String value) {
         StringBuffer decoded = new StringBuffer();
         int i = 0;
         while (i < value.length()) {
@@ -297,8 +355,9 @@ public class TestAttributeValueEncoding extends TestCase {
             return "<";
         } else if (reference.equals("gt")) {
             return ">";
-        } else if (reference.startsWith("#") && reference.length() > 1) {
-            return String.valueOf((char) Integer.parseInt(reference.substring(1)));
+        } else if (reference.matches("#[0-9]{1,5}")) {
+            int code = Integer.parseInt(reference.substring(1));
+            return code < 0x10000 ? String.valueOf((char) code) : null;
         }
         return null;
     }
