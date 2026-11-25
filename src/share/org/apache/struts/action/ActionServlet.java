@@ -1150,7 +1150,6 @@ public class ActionServlet extends HttpServlet {
         }
 
         try {
-            DigesterSecurity.secure(digester);
             digester.parse(input);
 
         } catch (IOException e) {

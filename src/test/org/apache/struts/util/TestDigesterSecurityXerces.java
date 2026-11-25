@@ -24,6 +24,7 @@ import javax.xml.parsers.SAXParserFactory;
 import junit.framework.TestCase;
 
 import org.apache.commons.digester.Digester;
+import org.xml.sax.XMLReader;
 
 /**
  * The XML parsing policy holds with Xerces 2.6.2, as shipped in the
@@ -117,16 +118,47 @@ public class TestDigesterSecurityXerces extends TestCase {
 
     /** Xerces 2.6.2 has no expansion limit unless one is installed. */
     public void testInternalEntityExpansion_IsLimited() throws Exception {
-        StringBuffer doc = new StringBuffer("<!DOCTYPE root [\n<!ENTITY e0 \"x\">\n");
-        for (int i = 1; i <= 6; i++) {
-            doc.append("<!ENTITY e" + i + " \"");
-            for (int j = 0; j < 10; j++) {
-                doc.append("&e" + (i - 1) + ";");
-            }
-            doc.append("\">\n");
-        }
-        doc.append("]>\n<root>&e6;</root>");
+        TestDigesterSecurity.assertRejected(xercesDigester(false),
+            TestDigesterSecurity.billionLaughs(5, "<root>&e5;</root>"));
+    }
 
-        TestDigesterSecurity.assertRejected(xercesDigester(false), doc.toString());
+    public void testInternalEntityExpansionInAttribute_IsLimited() throws Exception {
+        TestDigesterSecurity.assertRejected(xercesDigester(false),
+            TestDigesterSecurity.billionLaughs(5, "<root a=\"&e5;\"/>"));
+    }
+
+    /** Xerces limits only the count, so the length of each entity is limited. */
+    public void testInternalEntity_OverLengthLimit_IsRejected() throws Exception {
+        TestDigesterSecurity.assertRejected(xercesDigester(false),
+            TestDigesterSecurity.entityOfLength(DigesterSecurity.MAX_ENTITY_LENGTH + 1));
+    }
+
+    /**
+     * A security manager that the application set without a usable limit is
+     * replaced, not changed, since other parsers may share it.
+     */
+    public void testUnlimitedSecurityManager_IsReplacedNotChanged() throws Exception {
+        Class managerClass =
+            Class.forName("org.apache.xerces.util.SecurityManager", true, xercesLoader);
+        Object unlimited = managerClass.newInstance();
+        managerClass.getMethod("setEntityExpansionLimit", new Class[] {int.class})
+            .invoke(unlimited, new Object[] {new Integer(0)});
+        XMLReader reader = new XercesDigester().getFactory().newSAXParser().getXMLReader();
+        reader.setProperty(SECURITY_MANAGER, unlimited);
+
+        DigesterSecurity.secure(new Digester(reader));
+
+        Object installed = reader.getProperty(SECURITY_MANAGER);
+        assertNotSame(unlimited, installed);
+        assertEquals(new Integer(DigesterSecurity.MAX_ENTITY_EXPANSIONS), limitOf(installed));
+        assertEquals(new Integer(0), limitOf(unlimited));
+    }
+
+    private static final String SECURITY_MANAGER =
+        "http://apache.org/xml/properties/security-manager";
+
+    private static Object limitOf(Object manager) throws Exception {
+        return manager.getClass().getMethod("getEntityExpansionLimit", new Class[0])
+            .invoke(manager, new Object[0]);
     }
 }

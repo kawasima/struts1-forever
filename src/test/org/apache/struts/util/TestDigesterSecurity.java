@@ -220,38 +220,85 @@ public class TestDigesterSecurity extends TestCase {
         assertNoConnection();
     }
 
-    public void testXInclude_IsNotProcessed() throws Exception {
-        Digester digester = secureDigester(false);
-        digester.setNamespaceAware(true);
+    /** Control: an XInclude-aware parser without the policy fetches the include. */
+    public void testXIncludeAwareReader_Unsecured_FetchesInclude() throws Exception {
+        parseIgnoringRejection(xincludeAwareReader(), xincludeDoc());
+        assertEquals(connectionsBefore + 1, counter.getCount());
+    }
 
-        digester.parse(stream("<root xmlns:xi=\"http://www.w3.org/2001/XInclude\">"
-            + "<xi:include href=\"" + counter.url("/included.xml") + "\"/></root>"));
+    public void testXIncludeAwareReader_Secured_DoesNotFetchInclude() throws Exception {
+        parseSecuredIgnoringRejection(new Digester(xincludeAwareReader()), xincludeDoc());
         assertNoConnection();
     }
 
-    public void testSchemaLocation_IsNotFetched() throws Exception {
-        Digester digester = secureDigester(true);
-        digester.setNamespaceAware(true);
-        collectErrors(digester);
+    /** Control: a schema-validating parser without the policy fetches the schema. */
+    public void testSchemaValidatingReader_Unsecured_FetchesSchema() throws Exception {
+        parseIgnoringRejection(schemaValidatingReader(), schemaDoc());
+        assertEquals(connectionsBefore + 1, counter.getCount());
+    }
 
-        digester.parse(stream("<root xmlns=\"urn:test\""
-            + " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
-            + " xsi:schemaLocation=\"urn:test " + counter.url("/root.xsd") + "\"/>"));
+    public void testSchemaValidatingReader_Secured_DoesNotFetchSchema() throws Exception {
+        parseSecuredIgnoringRejection(new Digester(schemaValidatingReader()), schemaDoc());
         assertNoConnection();
     }
 
     public void testInternalEntityExpansion_IsLimited() throws Exception {
-        StringBuffer doc = new StringBuffer("<!DOCTYPE root [\n<!ENTITY e0 \"x\">\n");
-        for (int i = 1; i <= 6; i++) {
-            doc.append("<!ENTITY e" + i + " \"");
-            for (int j = 0; j < 10; j++) {
-                doc.append("&e" + (i - 1) + ";");
-            }
-            doc.append("\">\n");
-        }
-        doc.append("]>\n<root>&e6;</root>");
+        assertRejected(secureDigester(false), billionLaughs(5, "<root>&e5;</root>"));
+    }
 
-        assertRejected(secureDigester(false), doc.toString());
+    public void testInternalEntityExpansionInAttribute_IsLimited() throws Exception {
+        assertRejected(secureDigester(false), billionLaughs(5, "<root a=\"&e5;\"/>"));
+    }
+
+    /** Control: with its limit at 0 the parser expands 10^5 entities. */
+    public void testUnlimitedReader_Unsecured_ExpandsEntities() throws Exception {
+        XMLReader reader = newXmlReader();
+        reader.setProperty(JDK_EXPANSION_LIMIT, "0");
+        reader.setFeature("http://javax.xml.XMLConstants/feature/secure-processing", true);
+
+        reader.parse(new InputSource(stream(billionLaughs(5, "<root>&e5;</root>"))));
+    }
+
+    /**
+     * An explicit limit of 0 (for example from jdk.xml.entityExpansionLimit)
+     * leaves expansion unlimited although secure processing is on; the policy
+     * replaces it.
+     */
+    public void testUnlimitedReader_Secured_IsLimited() throws Exception {
+        XMLReader reader = newXmlReader();
+        reader.setProperty(JDK_EXPANSION_LIMIT, "0");
+        reader.setFeature("http://javax.xml.XMLConstants/feature/secure-processing", true);
+        Digester digester = new Digester(reader);
+        DigesterSecurity.secure(digester);
+
+        assertEquals(String.valueOf(DigesterSecurity.MAX_ENTITY_EXPANSIONS),
+            reader.getProperty(JDK_EXPANSION_LIMIT));
+        assertRejected(digester, billionLaughs(5, "<root>&e5;</root>"));
+    }
+
+    public void testLowerExpansionLimit_IsKept() throws Exception {
+        XMLReader reader = newXmlReader();
+        reader.setProperty(JDK_EXPANSION_LIMIT, "100");
+        DigesterSecurity.secure(new Digester(reader));
+
+        assertEquals("100", reader.getProperty(JDK_EXPANSION_LIMIT));
+    }
+
+    public void testInternalEntity_AtLengthLimit_IsAccepted() throws Exception {
+        secureDigester(false).parse(stream(entityOfLength(DigesterSecurity.MAX_ENTITY_LENGTH)));
+    }
+
+    public void testInternalEntity_OverLengthLimit_IsRejected() throws Exception {
+        assertRejected(secureDigester(false),
+            entityOfLength(DigesterSecurity.MAX_ENTITY_LENGTH + 1));
+    }
+
+    public void testUnreferencedExternalEntityDeclaration_IsRejectedWithoutConnection()
+            throws Exception {
+        assertRejected(secureDigester(false), "<!DOCTYPE root [\n"
+            + "  <!ENTITY unused SYSTEM \"" + counter.url("/entity") + "\">\n"
+            + "]>\n<root/>");
+        assertNoConnection();
     }
 
     // ------------------------------------------------------------------
@@ -333,7 +380,13 @@ public class TestDigesterSecurity extends TestCase {
     public void testReaderWithoutAnyEntityExpansionLimit_IsRefused() throws Exception {
         assertRefused(new PolicyTestReader(newXmlReader())
             .unrecognize("http://javax.xml.XMLConstants/feature/secure-processing")
+            .unrecognize(JDK_EXPANSION_LIMIT)
             .unrecognize("http://apache.org/xml/properties/security-manager"));
+    }
+
+    public void testReaderWithoutDeclarationEvents_IsRefused() throws Exception {
+        assertRefused(new PolicyTestReader(newXmlReader())
+            .unrecognize("http://xml.org/sax/properties/declaration-handler"));
     }
 
     public void testReaderWithXIncludeOn_IsRefused() throws Exception {
@@ -349,6 +402,84 @@ public class TestDigesterSecurity extends TestCase {
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
+
+    static final String JDK_EXPANSION_LIMIT =
+        "http://www.oracle.com/xml/jaxp/properties/entityExpansionLimit";
+
+
+    /** 10^levels expansions of e0 through e1..e{levels}, used by the body. */
+    static String billionLaughs(int levels, String body) {
+        StringBuffer doc = new StringBuffer("<!DOCTYPE root [\n<!ENTITY e0 \"x\">\n");
+        for (int i = 1; i <= levels; i++) {
+            doc.append("<!ENTITY e" + i + " \"");
+            for (int j = 0; j < 10; j++) {
+                doc.append("&e" + (i - 1) + ";");
+            }
+            doc.append("\">\n");
+        }
+        return doc.append("]>\n").append(body).toString();
+    }
+
+    static String entityOfLength(int length) {
+        StringBuffer value = new StringBuffer();
+        for (int i = 0; i < length; i++) {
+            value.append('x');
+        }
+        return "<!DOCTYPE root [<!ENTITY long \"" + value + "\">]>\n<root>&long;</root>";
+    }
+
+    private XMLReader xincludeAwareReader() throws Exception {
+        SAXParserFactory factory = SAXParserFactory.newInstance();
+        factory.setNamespaceAware(true);
+        factory.setXIncludeAware(true);
+        return factory.newSAXParser().getXMLReader();
+    }
+
+    private XMLReader schemaValidatingReader() throws Exception {
+        SAXParserFactory factory = SAXParserFactory.newInstance();
+        factory.setNamespaceAware(true);
+        factory.setValidating(true);
+        javax.xml.parsers.SAXParser parser = factory.newSAXParser();
+        parser.setProperty("http://java.sun.com/xml/jaxp/properties/schemaLanguage",
+            "http://www.w3.org/2001/XMLSchema");
+        return parser.getXMLReader();
+    }
+
+    private String xincludeDoc() {
+        return "<root xmlns:xi=\"http://www.w3.org/2001/XInclude\">"
+            + "<xi:include href=\"" + counter.url("/included.xml") + "\"/></root>";
+    }
+
+    private String schemaDoc() {
+        return "<root xmlns=\"urn:test\""
+            + " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
+            + " xsi:schemaLocation=\"urn:test " + counter.url("/root.xsd") + "\"/>";
+    }
+
+    /** Applies the policy, then parses; refusing either step is acceptable. */
+    private static void parseSecuredIgnoringRejection(Digester digester, String xml)
+            throws IOException {
+        try {
+            DigesterSecurity.secure(digester);
+            digester.parse(stream(xml));
+        } catch (SAXException e) {
+            // either outcome is fine
+        }
+    }
+
+    /** Parses with a bare reader, ignoring any error. */
+    private static void parseIgnoringRejection(XMLReader reader, String xml)
+            throws IOException {
+        reader.setErrorHandler(new ErrorCollector() {
+            public void fatalError(SAXParseException e) {
+            }
+        });
+        try {
+            reader.parse(new InputSource(stream(xml)));
+        } catch (SAXException e) {
+            // the control only counts connections
+        }
+    }
 
     static Digester secureDigester(boolean validating) {
         Digester digester = new SecureDigester();

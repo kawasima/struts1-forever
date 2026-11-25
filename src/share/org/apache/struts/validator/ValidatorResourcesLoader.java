@@ -41,8 +41,9 @@ import org.xml.sax.SAXException;
  * digester rules, DTD registrations and <code>arg0</code>-<code>arg3</code>
  * rules) through public API only, and parses with a
  * <code>SecureDigester</code>. <code>TestValidatorResourcesLoader</code>
- * compares the result with the constructor, so an upgrade of Commons
- * Validator that changes how it loads files fails that test.</p>
+ * compares the result with the constructor for its test files and checks
+ * the DTD list against Commons Validator; review this class when upgrading
+ * Commons Validator.</p>
  */
 final class ValidatorResourcesLoader {
 

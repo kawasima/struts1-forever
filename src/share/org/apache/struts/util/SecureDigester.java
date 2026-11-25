@@ -56,22 +56,4 @@ public class SecureDigester extends Digester {
         DigesterSecurity.secure(this, reader);
         return reader;
     }
-
-    /**
-     * Fail on a reference to an external general entity that the parser
-     * skipped. External entities are not expanded, and leaving the reference
-     * out would silently drop part of the configuration, for example of a
-     * <code>struts-config.xml</code> split into files with
-     * <code>&amp;name;</code> references. {@link DigesterSecurity} already
-     * rejects the declaration of such an entity on parsers that report
-     * declarations; this covers parsers that do not.
-     */
-    public void skippedEntity(String name) throws SAXException {
-        if (!name.startsWith("%")) {
-            throw new SAXException("External entity &" + name + "; is not"
-                + " expanded. Put its content into the document instead of"
-                + " referring to it.");
-        }
-        super.skippedEntity(name);
-    }
 }

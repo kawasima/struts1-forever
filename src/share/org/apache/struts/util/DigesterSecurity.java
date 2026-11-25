@@ -16,6 +16,7 @@
 package org.apache.struts.util;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 
 import org.apache.commons.digester.Digester;
 import org.apache.commons.logging.Log;
@@ -32,27 +33,33 @@ import org.xml.sax.ext.DeclHandler;
  *
  * <p>A <code>Digester</code> that follows this policy may parse a document
  * with a <code>DOCTYPE</code> declaration, and the following holds for every
- * document it parses:</p>
+ * document it parses, whether or not it validates:</p>
  * <ul>
- * <li>External general and parameter entities are not expanded. A document
- *     or DTD that declares an external general entity fails to parse, so
- *     that a reference to it is not silently left out.</li>
  * <li>An external DTD or entity is read only from a source that the
  *     application provided: a resource registered with
  *     {@link Digester#register(String, String)}, or what an
  *     <code>EntityResolver</code> set with
  *     {@link Digester#setEntityResolver(EntityResolver)} returns. Struts never
- *     falls back to opening a URI written in the document. A registration or a
- *     resolver is the application's explicit permission, and any I/O it causes
- *     is the application's responsibility.</li>
- * <li>Entity expansion is limited, so a document cannot make the parser
- *     expand internal entities without bound.</li>
- * <li>XInclude is not processed.</li>
+ *     falls back to opening a URI written in the document; this also covers
+ *     XInclude and XML Schema documents, which parsers resolve the same way. A
+ *     registration or a resolver is the application's explicit permission,
+ *     and any I/O it causes is the application's responsibility.</li>
+ * <li>External entities are not expanded. A document or DTD that declares an
+ *     external general entity fails to parse, so that a reference to it is
+ *     not silently left out.</li>
+ * <li>A document expands to at most {@link #MAX_ENTITY_EXPANSIONS} entity
+ *     expansions of at most {@link #MAX_ENTITY_LENGTH} characters each. The
+ *     parser counts the expansions; its limit is lowered to
+ *     <code>MAX_ENTITY_EXPANSIONS</code> if it is higher or unlimited and kept
+ *     if it is lower. Struts rejects the declaration of an internal entity
+ *     whose replacement text is longer than <code>MAX_ENTITY_LENGTH</code>.
+ *     Together these bound the expanded text of a document, on parsers that
+ *     limit only the number of expansions (Apache Xerces) as well.</li>
+ * <li>XInclude is not processed by parsers that let it be turned off.</li>
  * </ul>
- * <p>Whether the <code>Digester</code> validates does not change any of
- * this. If the XML parser cannot be made to meet one of these conditions,
- * parsing fails with a <code>SAXException</code> instead of going ahead
- * without it.</p>
+ * <p>If the XML parser cannot be made to meet these conditions, parsing fails
+ * with a <code>SAXException</code> instead of going ahead without them. The
+ * JDK parser and Apache Xerces 2.x meet them.</p>
  *
  * <p>Struts creates its own <code>Digester</code> instances as
  * {@link SecureDigester}, which applies this policy whenever it parses. Use
@@ -63,6 +70,12 @@ import org.xml.sax.ext.DeclHandler;
  * @since Struts 1.2.9-forever-4
  */
 public final class DigesterSecurity {
+
+    /** Highest entity expansion count a parser may allow. */
+    public static final int MAX_ENTITY_EXPANSIONS = 10000;
+
+    /** Longest replacement text of an internal entity, in characters. */
+    public static final int MAX_ENTITY_LENGTH = 5000;
 
     private static final Log log = LogFactory.getLog(DigesterSecurity.class);
 
@@ -75,7 +88,11 @@ public final class DigesterSecurity {
     private static final String FEATURE_SECURE_PROCESSING =
         "http://javax.xml.XMLConstants/feature/secure-processing";
 
-    /** Entity expansion limit of Xerces versions without secure processing. */
+    /** Entity expansion limit of the JDK parser. */
+    private static final String PROPERTY_JDK_ENTITY_EXPANSION_LIMIT =
+        "http://www.oracle.com/xml/jaxp/properties/entityExpansionLimit";
+
+    /** Holds the entity expansion limit of Apache Xerces. */
     private static final String PROPERTY_XERCES_SECURITY_MANAGER =
         "http://apache.org/xml/properties/security-manager";
 
@@ -104,7 +121,8 @@ public final class DigesterSecurity {
      * <p>The <code>Digester</code> creates its XML parser from its current
      * configuration at this point, so configure it (validation, namespace
      * awareness, DTD registrations) first. Calling this again on the same
-     * <code>Digester</code> keeps the policy.</p>
+     * <code>Digester</code> keeps the policy. A {@link SecureDigester} applies
+     * the policy itself when it parses, so nothing is done for one here.</p>
      *
      * @param digester the Digester that is about to parse
      * @throws SAXException if the XML parser cannot be created or cannot be
@@ -112,8 +130,6 @@ public final class DigesterSecurity {
      */
     public static void secure(Digester digester) throws SAXException {
         if (digester instanceof SecureDigester) {
-            // Applies the policy itself whenever it hands out its reader.
-            digester.getXMLReader();
             return;
         }
 
@@ -123,7 +139,17 @@ public final class DigesterSecurity {
             digester.setEntityResolver(
                 new RegisteredEntityResolver(digester, current));
         }
-        configure(readerOf(digester));
+
+        XMLReader reader;
+        try {
+            reader = digester.getXMLReader();
+        } catch (RuntimeException e) {
+            throw new SAXException("Cannot create the XML parser", e);
+        }
+        if (reader == null) {
+            throw new SAXException("Cannot create the XML parser");
+        }
+        configure(reader);
     }
 
     /**
@@ -138,28 +164,15 @@ public final class DigesterSecurity {
         configure(reader);
     }
 
-    private static XMLReader readerOf(Digester digester) throws SAXException {
-        XMLReader reader;
-        try {
-            reader = digester.getXMLReader();
-        } catch (RuntimeException e) {
-            throw new SAXException("Cannot create the XML parser", e);
-        }
-        if (reader == null) {
-            throw new SAXException("Cannot create the XML parser");
-        }
-        return reader;
-    }
-
     private static void configure(XMLReader reader) throws SAXException {
         requireFeature(reader, FEATURE_EXTERNAL_GENERAL_ENTITIES, false);
         requireFeature(reader, FEATURE_EXTERNAL_PARAMETER_ENTITIES, false);
         requireEntityExpansionLimit(reader);
+        requireDeclarationGuard(reader);
         requireNoXInclude(reader);
-        rejectExternalEntityDeclarations(reader);
 
-        // The entity resolver already decides which DTDs are read; these
-        // properties also stop the parser itself where it supports them.
+        // The entity resolver already decides what is read; these properties
+        // also stop the parser itself where it supports them.
         setOptionalProperty(reader, PROPERTY_ACCESS_EXTERNAL_DTD, "");
         setOptionalProperty(reader, PROPERTY_ACCESS_EXTERNAL_SCHEMA, "");
     }
@@ -178,48 +191,144 @@ public final class DigesterSecurity {
     }
 
     /**
-     * Secure processing limits entity expansion in the JDK parser and in
-     * Xerces 2.7 and later. Older Xerces versions limit it with a
-     * SecurityManager instead.
+     * Make the parser count entity expansions with a limit between 1 and
+     * {@link #MAX_ENTITY_EXPANSIONS}, and read the limit back. Secure
+     * processing does not establish this by itself: an explicit limit of 0,
+     * for example from the <code>jdk.xml.entityExpansionLimit</code> system
+     * property, keeps expansion unlimited with secure processing on.
      */
     private static void requireEntityExpansionLimit(XMLReader reader)
             throws SAXException {
+        // Also turns on the other limits of the JDK parser.
         try {
             reader.setFeature(FEATURE_SECURE_PROCESSING, true);
-            if (reader.getFeature(FEATURE_SECURE_PROCESSING)) {
-                return;
-            }
         } catch (SAXException e) {
-            // Not supported; try the Xerces security manager below.
+            // Not supported (Xerces before 2.7).
         }
 
-        try {
-            if (reader.getProperty(PROPERTY_XERCES_SECURITY_MANAGER) == null) {
-                Class managerClass = Class.forName(XERCES_SECURITY_MANAGER_CLASS,
-                    true, reader.getClass().getClassLoader());
-                reader.setProperty(PROPERTY_XERCES_SECURITY_MANAGER,
-                    managerClass.newInstance());
-            }
-            if (reader.getProperty(PROPERTY_XERCES_SECURITY_MANAGER) != null) {
-                return;
-            }
-        } catch (SAXException e) {
-            // Not a Xerces parser.
-        } catch (ClassNotFoundException e) {
-            // Not a Xerces parser.
-        } catch (InstantiationException e) {
-            // Not usable.
-        } catch (IllegalAccessException e) {
-            // Not usable.
+        if (limitJdkExpansions(reader) || limitXercesExpansions(reader)) {
+            return;
         }
         throw unsafeParser(reader, "cannot limit entity expansion", null);
     }
 
+    private static boolean limitJdkExpansions(XMLReader reader) throws SAXException {
+        Object current;
+        try {
+            current = reader.getProperty(PROPERTY_JDK_ENTITY_EXPANSION_LIMIT);
+        } catch (SAXException e) {
+            return false;
+        }
+        if (!isEffective(toLimit(current))) {
+            reader.setProperty(PROPERTY_JDK_ENTITY_EXPANSION_LIMIT,
+                String.valueOf(MAX_ENTITY_EXPANSIONS));
+        }
+        int limit = toLimit(reader.getProperty(PROPERTY_JDK_ENTITY_EXPANSION_LIMIT));
+        if (!isEffective(limit)) {
+            throw unsafeParser(reader, "keeps its entity expansion limit at " + limit, null);
+        }
+        return true;
+    }
+
+    /**
+     * Apache Xerces keeps the limit in a SecurityManager. A manager that
+     * allows too many expansions is replaced, not changed, because the
+     * application may share it with other parsers.
+     */
+    private static boolean limitXercesExpansions(XMLReader reader) throws SAXException {
+        Object manager;
+        try {
+            manager = reader.getProperty(PROPERTY_XERCES_SECURITY_MANAGER);
+        } catch (SAXException e) {
+            return false;
+        }
+        if (manager == null || !isEffective(xercesLimit(manager))) {
+            manager = newXercesSecurityManager(reader);
+            if (manager == null) {
+                return false;
+            }
+            reader.setProperty(PROPERTY_XERCES_SECURITY_MANAGER, manager);
+        }
+        int limit = xercesLimit(reader.getProperty(PROPERTY_XERCES_SECURITY_MANAGER));
+        if (!isEffective(limit)) {
+            throw unsafeParser(reader, "keeps its entity expansion limit at " + limit, null);
+        }
+        return true;
+    }
+
+    private static Object newXercesSecurityManager(XMLReader reader) {
+        try {
+            Class managerClass = Class.forName(XERCES_SECURITY_MANAGER_CLASS,
+                true, reader.getClass().getClassLoader());
+            Object manager = managerClass.newInstance();
+            managerClass.getMethod("setEntityExpansionLimit", new Class[] {int.class})
+                .invoke(manager, new Object[] {new Integer(MAX_ENTITY_EXPANSIONS)});
+            return manager;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** @return the limit of a Xerces SecurityManager, or 0 if unknown */
+    private static int xercesLimit(Object manager) {
+        if (manager == null) {
+            return 0;
+        }
+        try {
+            Method getter = manager.getClass().getMethod(
+                "getEntityExpansionLimit", new Class[0]);
+            return ((Integer) getter.invoke(manager, new Object[0])).intValue();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /** @return the limit, or 0 (unlimited) if it is not a number */
+    private static int toLimit(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value.toString().trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static boolean isEffective(int limit) {
+        return limit > 0 && limit <= MAX_ENTITY_EXPANSIONS;
+    }
+
+    /**
+     * Install the handler that rejects external general entities and long
+     * internal entities, and read it back.
+     */
+    private static void requireDeclarationGuard(XMLReader reader) throws SAXException {
+        try {
+            Object current = reader.getProperty(PROPERTY_DECLARATION_HANDLER);
+            if (!(current instanceof DeclarationGuard)) {
+                reader.setProperty(PROPERTY_DECLARATION_HANDLER,
+                    new DeclarationGuard((DeclHandler) current));
+            }
+            if (reader.getProperty(PROPERTY_DECLARATION_HANDLER) instanceof DeclarationGuard) {
+                return;
+            }
+        } catch (SAXException e) {
+            throw unsafeParser(reader, "does not report entity declarations", e);
+        }
+        throw unsafeParser(reader, "does not keep its declaration handler", null);
+    }
+
+    /**
+     * Turn XInclude off where the parser has it. A parser that does not
+     * recognize the feature does not implement XInclude in the JDK and
+     * Xerces; any parser resolves XInclude documents through the entity
+     * resolver, which rejects them unless the application registered them.
+     */
     private static void requireNoXInclude(XMLReader reader) throws SAXException {
         try {
             reader.setFeature(FEATURE_XINCLUDE, false);
         } catch (SAXNotRecognizedException e) {
-            // The parser does not implement XInclude.
             return;
         } catch (SAXException e) {
             // Recognized but not changeable; check its current value.
@@ -232,27 +341,6 @@ public final class DigesterSecurity {
             throw unsafeParser(reader, "cannot report whether it processes XInclude", e);
         }
         throw unsafeParser(reader, "processes XInclude and cannot turn it off", null);
-    }
-
-    /**
-     * Parsers report a reference to an unexpanded external entity
-     * differently (Xerces 2.6.2 drops it without telling the content
-     * handler), so the declaration is rejected instead.
-     */
-    private static void rejectExternalEntityDeclarations(XMLReader reader) {
-        try {
-            Object current = reader.getProperty(PROPERTY_DECLARATION_HANDLER);
-            if (!(current instanceof ExternalEntityDeclarationGuard)) {
-                reader.setProperty(PROPERTY_DECLARATION_HANDLER,
-                    new ExternalEntityDeclarationGuard((DeclHandler) current));
-            }
-        } catch (SAXException e) {
-            // Without declaration events, SecureDigester.skippedEntity()
-            // reports the reference where the parser reports it.
-            if (log.isDebugEnabled()) {
-                log.debug("XML parser does not report entity declarations");
-            }
-        }
     }
 
     private static void setOptionalProperty(XMLReader reader, String name, Object value) {
@@ -272,13 +360,19 @@ public final class DigesterSecurity {
         return cause == null ? new SAXException(message) : new SAXException(message, cause);
     }
 
-    /** Fails on the declaration of an external general entity. */
-    private static final class ExternalEntityDeclarationGuard implements DeclHandler {
+    /**
+     * Fails on the declaration of an external general entity, and of an
+     * internal entity whose replacement text is longer than
+     * {@link DigesterSecurity#MAX_ENTITY_LENGTH}. Each entity expansion then
+     * produces at most that many characters itself, whichever entities it
+     * refers to.
+     */
+    private static final class DeclarationGuard implements DeclHandler {
 
         /** Declaration handler set on the reader before, or null. */
         private final DeclHandler next;
 
-        ExternalEntityDeclarationGuard(DeclHandler next) {
+        DeclarationGuard(DeclHandler next) {
             this.next = next;
         }
 
@@ -295,6 +389,11 @@ public final class DigesterSecurity {
         }
 
         public void internalEntityDecl(String name, String value) throws SAXException {
+            if (value.length() > MAX_ENTITY_LENGTH) {
+                throw new SAXException("Entity '" + name + "' is " + value.length()
+                    + " characters long; Struts allows at most " + MAX_ENTITY_LENGTH
+                    + " characters per entity.");
+            }
             if (next != null) {
                 next.internalEntityDecl(name, value);
             }
