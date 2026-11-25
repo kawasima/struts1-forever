@@ -154,6 +154,17 @@
       <artifactId>commons-fileupload</artifactId>
       <version>1.6.0</version>
     </dependency>
+    <!--
+      Already a dependency of commons-fileupload; declared directly because
+      the jakarta JAR bundles commons-fileupload, so its users exclude it and
+      would otherwise lose commons-io as well. Keep in line with the version
+      commons-fileupload requires.
+    -->
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+      <version>2.19.0</version>
+    </dependency>
     <dependency>
       <groupId>commons-logging</groupId>
       <artifactId>commons-logging</artifactId>
@@ -308,21 +319,13 @@
         <version>2.18.1</version>
         <configuration>
           <includes>
-            <include>org/apache/struts/action/TestDynaActionForm.java</include>
-            <include>org/apache/struts/action/TestDynaActionFormClass.java</include>
-            <include>org/apache/struts/action/TestActionServlet.java</include>
-            <include>org/apache/struts/action/TestDigesterXxePrevention.java</include>
-            <include>org/apache/struts/actions/Test*.java</include>
-            <include>org/apache/struts/config/Test*.java</include>
-            <include>org/apache/struts/taglib/TestTagUtils.java</include>
-            <include>org/apache/struts/taglib/bean/Test*.java</include>
-            <include>org/apache/struts/taglib/html/Test*.java</include>
-            <include>org/apache/struts/taglib/logic/Test*.java</include>
-            <include>org/apache/struts/util/Test*.java</include>
-            <include>org/apache/struts/upload/Test*.java</include>
-            <include>org/apache/struts/validator/Test*.java</include>
-            <include>org/apache/struts/tiles/TestI18nFactorySetPathTraversal.java</include>
+            <include>**/Test*.java</include>
           </includes>
+          <excludes>
+            <!-- Fails until #3 (DOCTYPE rejected) is fixed. -->
+            <exclude>org/apache/struts/tiles/TestTilesPlugin.java</exclude>
+          </excludes>
+          <failIfNoTests>true</failIfNoTests>
         </configuration>
       </plugin>
     </plugins>
@@ -394,6 +397,389 @@
             <configuration>
               <release>8</release>
             </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!--
+      Jakarta EE 9+ variant, published as the "jakarta" classifier.
+
+      The sources stay on javax.servlet. The jakarta JAR is assembled from
+      the compiled classes in three steps that start from empty directories
+      on every build:
+
+        process-classes       src/jakarta (classes that must differ in the
+                              jakarta JAR) is compiled against Jakarta
+                              Servlet 5.0 into target/jakarta-overlay-classes.
+        process-test-classes  target/classes, the overlay classes and the
+                              unpacked commons-fileupload 1.x classes are
+                              copied into target/jakarta-classes, the test
+                              classes into target/jakarta-test-classes, and
+                              Eclipse Transformer rewrites both in place.
+        test                  The transformed test suite runs again against
+                              Jakarta Servlet 6.0 / JSP 3.1.
+
+      The JAR is packaged in "package", and src/it/jakarta-tomcat deploys it
+      to Tomcat 10.1 in "integration-test" (maven-invoker-plugin).
+
+      commons-fileupload is bundled under its original package name (not
+      relocated) because CommonsMultipartRequestHandler exposes FileItem in
+      protected methods.
+
+      Eclipse Transformer 1.0.0 requires JDK 17, so this profile is only
+      active on JDK 17+. Classes are compiled with release=8 there.
+    -->
+    <profile>
+      <id>jakarta</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <properties>
+        <maven.test.skip>false</maven.test.skip>
+        <jakarta.overlay-classes>${project.build.directory}/jakarta-overlay-classes</jakarta.overlay-classes>
+        <jakarta.classes>${project.build.directory}/jakarta-classes</jakarta.classes>
+        <jakarta.test-classes>${project.build.directory}/jakarta-test-classes</jakarta.test-classes>
+        <jakarta.test-api>${project.build.directory}/jakarta-test-api</jakarta.test-api>
+      </properties>
+      <dependencies>
+        <!-- Compile the overlay against the oldest supported API. -->
+        <dependency>
+          <groupId>jakarta.servlet</groupId>
+          <artifactId>jakarta.servlet-api</artifactId>
+          <version>5.0.0</version>
+          <scope>provided</scope>
+        </dependency>
+      </dependencies>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-clean-plugin</artifactId>
+            <version>3.4.1</version>
+            <executions>
+              <execution>
+                <id>jakarta-clean</id>
+                <phase>process-classes</phase>
+                <goals><goal>clean</goal></goals>
+                <configuration>
+                  <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                  <filesets>
+                    <fileset><directory>${jakarta.overlay-classes}</directory></fileset>
+                    <fileset><directory>${jakarta.classes}</directory></fileset>
+                    <fileset><directory>${jakarta.test-classes}</directory></fileset>
+                    <fileset><directory>${jakarta.test-api}</directory></fileset>
+                  </filesets>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.13.0</version>
+            <executions>
+              <execution>
+                <id>jakarta-overlay</id>
+                <phase>process-classes</phase>
+                <goals><goal>compile</goal></goals>
+                <configuration>
+                  <compileSourceRoots>
+                    <compileSourceRoot>${project.basedir}/src/jakarta</compileSourceRoot>
+                  </compileSourceRoots>
+                  <outputDirectory>${jakarta.overlay-classes}</outputDirectory>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-dependency-plugin</artifactId>
+            <version>3.8.1</version>
+            <executions>
+              <execution>
+                <id>jakarta-unpack-fileupload</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>unpack</goal></goals>
+                <configuration>
+                  <artifactItems>
+                    <artifactItem>
+                      <groupId>commons-fileupload</groupId>
+                      <artifactId>commons-fileupload</artifactId>
+                      <overWrite>true</overWrite>
+                      <outputDirectory>${jakarta.classes}</outputDirectory>
+                      <excludes>META-INF/MANIFEST.MF,META-INF/maven/**,META-INF/versions/**,org/apache/commons/fileupload/portlet/**</excludes>
+                    </artifactItem>
+                  </artifactItems>
+                </configuration>
+              </execution>
+              <execution>
+                <!--
+                  Added after the transformation so that scanners can identify
+                  the bundled version from unmodified Maven metadata.
+                -->
+                <id>jakarta-unpack-fileupload-metadata</id>
+                <phase>prepare-package</phase>
+                <goals><goal>unpack</goal></goals>
+                <configuration>
+                  <artifactItems>
+                    <artifactItem>
+                      <groupId>commons-fileupload</groupId>
+                      <artifactId>commons-fileupload</artifactId>
+                      <overWrite>true</overWrite>
+                      <outputDirectory>${jakarta.classes}</outputDirectory>
+                      <includes>META-INF/maven/**</includes>
+                    </artifactItem>
+                  </artifactItems>
+                </configuration>
+              </execution>
+              <execution>
+                <id>jakarta-copy-test-api</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>copy</goal></goals>
+                <configuration>
+                  <skip>${maven.test.skip}</skip>
+                  <stripVersion>true</stripVersion>
+                  <artifactItems>
+                    <!-- Oldest supported (Jakarta EE 9), tested runtime (Jakarta EE 10), newest (Jakarta EE 11). -->
+                    <artifactItem>
+                      <groupId>jakarta.servlet</groupId>
+                      <artifactId>jakarta.servlet-api</artifactId>
+                      <version>5.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/5.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.servlet.jsp</groupId>
+                      <artifactId>jakarta.servlet.jsp-api</artifactId>
+                      <version>3.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/5.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.el</groupId>
+                      <artifactId>jakarta.el-api</artifactId>
+                      <version>4.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/5.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.servlet</groupId>
+                      <artifactId>jakarta.servlet-api</artifactId>
+                      <version>6.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/6.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.servlet.jsp</groupId>
+                      <artifactId>jakarta.servlet.jsp-api</artifactId>
+                      <version>3.1.1</version>
+                      <outputDirectory>${jakarta.test-api}/6.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.el</groupId>
+                      <artifactId>jakarta.el-api</artifactId>
+                      <version>5.0.1</version>
+                      <outputDirectory>${jakarta.test-api}/6.0</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.servlet</groupId>
+                      <artifactId>jakarta.servlet-api</artifactId>
+                      <version>6.1.0</version>
+                      <outputDirectory>${jakarta.test-api}/6.1</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.servlet.jsp</groupId>
+                      <artifactId>jakarta.servlet.jsp-api</artifactId>
+                      <version>4.0.0</version>
+                      <outputDirectory>${jakarta.test-api}/6.1</outputDirectory>
+                    </artifactItem>
+                    <artifactItem>
+                      <groupId>jakarta.el</groupId>
+                      <artifactId>jakarta.el-api</artifactId>
+                      <version>6.0.1</version>
+                      <outputDirectory>${jakarta.test-api}/6.1</outputDirectory>
+                    </artifactItem>
+                  </artifactItems>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-resources-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>jakarta-copy-classes</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <outputDirectory>${jakarta.classes}</outputDirectory>
+                  <resources>
+                    <resource><directory>${project.build.outputDirectory}</directory></resource>
+                  </resources>
+                </configuration>
+              </execution>
+              <execution>
+                <id>jakarta-copy-overlay-classes</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <overwrite>true</overwrite>
+                  <outputDirectory>${jakarta.classes}</outputDirectory>
+                  <resources>
+                    <resource><directory>${jakarta.overlay-classes}</directory></resource>
+                  </resources>
+                </configuration>
+              </execution>
+              <execution>
+                <!-- A missing directory (maven.test.skip) is a no-op. -->
+                <id>jakarta-copy-test-classes</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <outputDirectory>${jakarta.test-classes}</outputDirectory>
+                  <resources>
+                    <resource><directory>${project.build.testOutputDirectory}</directory></resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.eclipse.transformer</groupId>
+            <artifactId>transformer-maven-plugin</artifactId>
+            <version>1.0.0</version>
+            <configuration>
+              <rules>
+                <jakartaDefaults>true</jakartaDefaults>
+              </rules>
+            </configuration>
+            <executions>
+              <execution>
+                <id>jakarta-transform-classes</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>transform</goal></goals>
+                <configuration>
+                  <transformDirectory>${jakarta.classes}</transformDirectory>
+                </configuration>
+              </execution>
+              <execution>
+                <id>jakarta-transform-test-classes</id>
+                <phase>process-test-classes</phase>
+                <goals><goal>transform</goal></goals>
+                <configuration>
+                  <skip>${maven.test.skip}</skip>
+                  <transformDirectory>${jakarta.test-classes}</transformDirectory>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>jakarta-test</id>
+                <phase>test</phase>
+                <goals><goal>test</goal></goals>
+                <configuration>
+                  <classesDirectory>${jakarta.classes}</classesDirectory>
+                  <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
+                  <reportsDirectory>${project.build.directory}/surefire-reports-jakarta</reportsDirectory>
+                  <classpathDependencyExcludes>
+                    <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
+                  </classpathDependencyExcludes>
+                  <additionalClasspathElements>
+                    <additionalClasspathElement>${jakarta.test-api}/6.0/jakarta.servlet-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/6.0/jakarta.servlet.jsp-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/6.0/jakarta.el-api.jar</additionalClasspathElement>
+                  </additionalClasspathElements>
+                </configuration>
+              </execution>
+              <execution>
+                <!-- API compatibility only: the full suite runs against 6.0 above. -->
+                <id>jakarta-compat-5.0</id>
+                <phase>test</phase>
+                <goals><goal>test</goal></goals>
+                <configuration>
+                  <test>TestServletApiCompatibility</test>
+                  <classesDirectory>${jakarta.classes}</classesDirectory>
+                  <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
+                  <reportsDirectory>${project.build.directory}/surefire-reports-jakarta-5.0</reportsDirectory>
+                  <classpathDependencyExcludes>
+                    <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
+                  </classpathDependencyExcludes>
+                  <additionalClasspathElements>
+                    <additionalClasspathElement>${jakarta.test-api}/5.0/jakarta.servlet-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/5.0/jakarta.servlet.jsp-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/5.0/jakarta.el-api.jar</additionalClasspathElement>
+                  </additionalClasspathElements>
+                </configuration>
+              </execution>
+              <execution>
+                <!-- API compatibility only: the full suite runs against 6.0 above. -->
+                <id>jakarta-compat-6.1</id>
+                <phase>test</phase>
+                <goals><goal>test</goal></goals>
+                <configuration>
+                  <test>TestServletApiCompatibility</test>
+                  <classesDirectory>${jakarta.classes}</classesDirectory>
+                  <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
+                  <reportsDirectory>${project.build.directory}/surefire-reports-jakarta-6.1</reportsDirectory>
+                  <classpathDependencyExcludes>
+                    <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
+                    <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
+                  </classpathDependencyExcludes>
+                  <additionalClasspathElements>
+                    <additionalClasspathElement>${jakarta.test-api}/6.1/jakarta.servlet-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/6.1/jakarta.servlet.jsp-api.jar</additionalClasspathElement>
+                    <additionalClasspathElement>${jakarta.test-api}/6.1/jakarta.el-api.jar</additionalClasspathElement>
+                  </additionalClasspathElements>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <version>3.5.0</version>
+            <executions>
+              <execution>
+                <id>jakarta-jar</id>
+                <phase>package</phase>
+                <goals><goal>jar</goal></goals>
+                <configuration>
+                  <classifier>jakarta</classifier>
+                  <classesDirectory>${jakarta.classes}</classesDirectory>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-invoker-plugin</artifactId>
+            <version>3.9.1</version>
+            <configuration>
+              <skipInstallation>${maven.test.skip}</skipInstallation>
+              <skipInvocation>${maven.test.skip}</skipInvocation>
+              <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
+              <localRepositoryPath>${project.build.directory}/it-repo</localRepositoryPath>
+              <settingsFile>src/it/settings.xml</settingsFile>
+              <goals><goal>verify</goal></goals>
+              <streamLogsOnFailures>true</streamLogsOnFailures>
+              <failIfNoProjects>true</failIfNoProjects>
+              <timeoutInSeconds>1200</timeoutInSeconds>
+            </configuration>
+            <executions>
+              <execution>
+                <id>jakarta-it</id>
+                <goals>
+                  <goal>install</goal>
+                  <goal>run</goal>
+                </goals>
+              </execution>
+            </executions>
           </plugin>
         </plugins>
       </build>
