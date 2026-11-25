@@ -63,6 +63,7 @@ import org.apache.struts.config.ModuleConfigFactory;
 import org.apache.struts.config.PlugInConfig;
 import org.apache.struts.util.DigesterSecurity;
 import org.apache.struts.util.MessageResources;
+import org.apache.struts.util.SecureDigester;
 import org.apache.struts.util.MessageResourcesFactory;
 import org.apache.struts.util.ModuleUtils;
 import org.apache.struts.util.RequestUtils;
@@ -949,7 +950,7 @@ public class ActionServlet extends HttpServlet {
         }
 
         // Create a new Digester instance with standard capabilities
-        configDigester = new Digester();
+        configDigester = new SecureDigester();
         configDigester.setNamespaceAware(true);
         configDigester.setValidating(this.isValidating());
         configDigester.setUseContextClassLoader(true);
@@ -1116,7 +1117,7 @@ public class ActionServlet extends HttpServlet {
         this.servletName = getServletConfig().getServletName();
 
         // Prepare a Digester to scan the web application deployment descriptor
-        Digester digester = new Digester();
+        Digester digester = new SecureDigester();
         digester.push(this);
         digester.setNamespaceAware(true);
         digester.setValidating(false);

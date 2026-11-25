@@ -234,7 +234,7 @@ public class ValidatorPlugIn implements PlugIn {
                 streamArray[streamIndex] = is;
             }
 
-            this.resources = new ValidatorResources(streamArray);
+            this.resources = ValidatorResourcesLoader.load(streamArray);
         } catch (SAXException sex) {
             log.error("Skipping all validation",sex);
             throw new ServletException(sex);

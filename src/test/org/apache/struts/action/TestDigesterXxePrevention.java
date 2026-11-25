@@ -31,7 +31,7 @@ import org.apache.struts.config.ModuleConfigFactory;
 import org.apache.struts.mock.MemoryServletContext;
 import org.apache.struts.mock.MockServletConfig;
 import org.apache.struts.util.ConnectionCounter;
-import org.apache.struts.util.DigesterSecurity;
+import org.xml.sax.EntityResolver;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -100,11 +100,11 @@ public class TestDigesterXxePrevention extends TestCase {
      * resolves to its local copy whatever system ID the document gives.
      */
     public void testRegisteredDtds_ResolveLocallyWithoutConnection() throws Exception {
-        Digester digester = servlet.initConfigDigester();
-        DigesterSecurity.secure(digester);
+        EntityResolver resolver =
+            servlet.initConfigDigester().getXMLReader().getEntityResolver();
 
         for (int i = 0; i < servlet.registrations.length; i += 2) {
-            InputSource source = digester.getEntityResolver().resolveEntity(
+            InputSource source = resolver.resolveEntity(
                 servlet.registrations[i], counter.url("/remote.dtd"));
             assertNotNull(servlet.registrations[i], source);
             source.getByteStream().close();
@@ -163,6 +163,41 @@ public class TestDigesterXxePrevention extends TestCase {
             parseModuleConfig(doctype("struts-config", UNKNOWN) + "<struts-config/>",
                 new ArrayList());
             fail("struts-config.xml with an unregistered DTD must be rejected");
+        } catch (UnavailableException e) {
+            // expected
+        }
+        assertNoConnection();
+    }
+
+    /**
+     * A subclass that parses with the Digester from
+     * {@code initConfigDigester()} itself, without
+     * {@code parseModuleConfigFile()}, gets the same restrictions.
+     */
+    public void testConfigDigester_ParsedDirectly_RejectsUnregisteredDtdWithoutConnection()
+            throws Exception {
+        try {
+            servlet.initConfigDigester().parse(new java.io.StringReader(
+                doctype("struts-config", UNKNOWN) + "<struts-config/>"));
+            fail("struts-config.xml with an unregistered DTD must be rejected");
+        } catch (SAXException e) {
+            // expected
+        }
+        assertNoConnection();
+    }
+
+    /**
+     * A struts-config.xml split into files with external entity references
+     * is rejected, instead of being loaded with those parts left out.
+     */
+    public void testModuleConfig_ExternalEntityReference_IsRejectedWithoutConnection()
+            throws Exception {
+        try {
+            parseModuleConfig("<!DOCTYPE struts-config PUBLIC \"" + STRUTS_12 + "\" \""
+                + counter.url("/remote.dtd") + "\" [\n"
+                + "  <!ENTITY actions SYSTEM \"" + counter.url("/actions.xml") + "\">\n"
+                + "]>\n<struts-config>&actions;</struts-config>", new ArrayList());
+            fail("struts-config.xml with an external entity reference must be rejected");
         } catch (UnavailableException e) {
             // expected
         }

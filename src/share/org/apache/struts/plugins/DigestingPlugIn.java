@@ -26,7 +26,6 @@ import javax.servlet.ServletException;
 
 import org.apache.commons.digester.Digester;
 import org.apache.commons.digester.RuleSet;
-import org.apache.commons.digester.xmlrules.DigesterLoader;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.struts.action.ActionServlet;
@@ -34,6 +33,8 @@ import org.apache.struts.action.PlugIn;
 import org.apache.struts.config.ModuleConfig;
 import org.apache.struts.util.DigesterSecurity;
 import org.apache.struts.util.RequestUtils;
+import org.apache.struts.util.SecureDigester;
+import org.apache.struts.util.SecureDigesterLoader;
 import org.xml.sax.SAXException;
 
 /**
@@ -191,12 +192,14 @@ public class DigestingPlugIn implements PlugIn {
      * @return a basic instance of <code>org.apache.commons.digester.Digester</code>
      */
     protected Digester newDigesterInstance() {
-        return new Digester();
+        return new SecureDigester();
     }
 
     /**
-     * <p>Instantiate a Digester from an XML input stream using the Commons
-     * <code>DigesterLoader</code>.</p>
+     * <p>Instantiate a Digester from an XML rules file, as the Commons
+     * <code>DigesterLoader</code> does, with the rules file and every rules
+     * file it includes parsed under the policy of
+     * {@link org.apache.struts.util.DigesterSecurity}.</p>
      * @param path the path to the digester rules XML to be found using <code>source</code>
      * @param source a string indicating the lookup method to be used with <code>path</code>
      * @return a configured Digester
@@ -212,18 +215,7 @@ public class DigestingPlugIn implements PlugIn {
         {
             throw new NullPointerException("No resource '" + path + "' found in '" + source + "'");
         }
-        // The rules file is parsed while the Digester is created, so the
-        // Digester that parses it is secured beforehand.
-        Digester rulesDigester = new Digester();
-        try {
-            DigesterSecurity.secure(rulesDigester);
-        } catch (SAXException e) {
-            IOException ioe = new IOException(
-                "Cannot secure the parser for digester rules: " + e.getMessage());
-            ioe.initCause(e);
-            throw ioe;
-        }
-        return DigesterLoader.createDigester(configURL, rulesDigester);
+        return SecureDigesterLoader.createDigester(configURL);
     }
 
     /**

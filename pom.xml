@@ -209,6 +209,17 @@
       <scope>provided</scope>
     </dependency>
     <!-- for unit tests -->
+    <!--
+      An old Xerces that applications still ship in WEB-INF/lib, without
+      secure processing. Only TestDigesterSecurityXerces uses it; surefire
+      keeps it off the test class path.
+    -->
+    <dependency>
+      <groupId>xerces</groupId>
+      <artifactId>xercesImpl</artifactId>
+      <version>2.6.2</version>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
@@ -322,6 +333,17 @@
             <include>**/Test*.java</include>
           </includes>
           <failIfNoTests>true</failIfNoTests>
+          <!--
+            xercesImpl is resolved as a test dependency but kept off the test
+            class path, where it would replace the JDK parser for every test.
+            TestDigesterSecurityXerces loads it with its own class loader.
+          -->
+          <classpathDependencyExcludes>
+            <classpathDependencyExclude>xerces:xercesImpl</classpathDependencyExclude>
+          </classpathDependencyExcludes>
+          <systemPropertyVariables>
+            <struts.test.xercesImpl>${settings.localRepository}/xerces/xercesImpl/2.6.2/xercesImpl-2.6.2.jar</struts.test.xercesImpl>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
     </plugins>
@@ -682,6 +704,7 @@
                     <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
                     <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
                     <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
+                    <classpathDependencyExclude>xerces:xercesImpl</classpathDependencyExclude>
                   </classpathDependencyExcludes>
                   <additionalClasspathElements>
                     <additionalClasspathElement>${jakarta.test-api}/6.0/jakarta.servlet-api.jar</additionalClasspathElement>
@@ -704,6 +727,7 @@
                     <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
                     <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
                     <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
+                    <classpathDependencyExclude>xerces:xercesImpl</classpathDependencyExclude>
                   </classpathDependencyExcludes>
                   <additionalClasspathElements>
                     <additionalClasspathElement>${jakarta.test-api}/5.0/jakarta.servlet-api.jar</additionalClasspathElement>
@@ -726,6 +750,7 @@
                     <classpathDependencyExclude>javax.servlet:servlet-api</classpathDependencyExclude>
                     <classpathDependencyExclude>jakarta.servlet:jakarta.servlet-api</classpathDependencyExclude>
                     <classpathDependencyExclude>commons-fileupload:commons-fileupload</classpathDependencyExclude>
+                    <classpathDependencyExclude>xerces:xercesImpl</classpathDependencyExclude>
                   </classpathDependencyExcludes>
                   <additionalClasspathElements>
                     <additionalClasspathElement>${jakarta.test-api}/6.1/jakarta.servlet-api.jar</additionalClasspathElement>

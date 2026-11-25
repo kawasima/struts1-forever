@@ -27,6 +27,7 @@ import java.net.URL;
 
 import org.apache.commons.digester.Digester;
 import org.apache.struts.util.DigesterSecurity;
+import org.apache.struts.util.SecureDigester;
 import org.xml.sax.SAXException;
 
 /**
@@ -58,7 +59,7 @@ public class XmlParser
       */
   public XmlParser()
   {
-	digester = new Digester();
+	digester = new SecureDigester();
 	digester.setValidating(validating);
 	digester.setNamespaceAware(true);
 	digester.setUseContextClassLoader(true);

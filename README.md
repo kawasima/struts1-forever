@@ -47,11 +47,17 @@ The jakarta JAR bundles Commons FileUpload 1.6.0, converted to `jakarta.servlet`
 
 ## External resources in XML files
 
-Struts parses `web.xml`, `struts-config.xml`, Tiles definition files and the files read by `DigestingPlugIn` (including its digester rules file). A `DOCTYPE` declaration is allowed in all of them. The parser reads an external DTD or entity only from a local copy that is registered with `Digester.register()`, or from an `EntityResolver` set on the `Digester`. It never opens the system identifier written in the document.
+Struts parses `web.xml`, `struts-config.xml`, Tiles definition files, the validation files of `ValidatorPlugIn`, and the files read by `DigestingPlugIn` (the data file, the digester rules file and every rules file it includes). A `DOCTYPE` declaration is allowed in all of them, and the following holds whether or not the parser validates:
 
-The local copies registered by default are the Struts Configuration 1.0, 1.1 and 1.2 DTDs, the Servlet 2.2 and 2.3 Web Application DTDs, the Tiles Configuration 1.1 DTD and the Commons Digester rules DTD. A rules file that a digester rules file includes with `<include path="..."/>` is a class path resource, and Commons Digester parses it without this restriction.
+- An external DTD is read only from a local copy registered with `Digester.register()`, or from what an `EntityResolver` set on the `Digester` returns. Struts never falls back to opening a URI written in the document. A registration or a resolver is the application's explicit permission, and any I/O it does is the application's responsibility.
+- External entities are not expanded. A document that declares an external general entity, for example to split `struts-config.xml` into files with `&name;` references, fails to parse instead of being loaded with those parts left out.
+- Entity expansion is limited, and XInclude is not processed.
 
-A document whose `DOCTYPE` refers to any other external DTD fails to parse, and external entities declared in a document are not expanded. Up to 1.2.9-forever-2 the parser downloaded such a DTD from its system identifier. If your files use a DTD of your own, register a local copy, for example in `DigestingPlugIn.newDigesterInstance()`, or remove the `DOCTYPE`.
+If the XML parser cannot be made to work this way, Struts does not parse with it and fails at start-up. The JDK parser and Xerces 2.x, including versions without secure processing such as 2.6.2, can.
+
+The local copies registered by default are the Struts Configuration 1.0, 1.1 and 1.2 DTDs, the Servlet 2.2 and 2.3 Web Application DTDs, the Tiles Configuration 1.1 DTD, the Commons Validator DTDs and the Commons Digester rules DTD. A document whose `DOCTYPE` refers to any other DTD fails to parse. Up to 1.2.9-forever-2 the parser downloaded such a DTD from its system identifier. If your files use a DTD of your own, register a local copy, for example in `DigestingPlugIn.newDigesterInstance()`, or remove the `DOCTYPE`.
+
+A `Digester` that an application creates itself, such as the one returned by an overridden `DigestingPlugIn.newDigesterInstance()`, gets the same restrictions when Struts parses with it. Create it as `org.apache.struts.util.SecureDigester` to have them whenever it parses.
 
 ## Fixed vulnerabilities
 
