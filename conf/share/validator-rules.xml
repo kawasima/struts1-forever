@@ -39,7 +39,8 @@
    errors.email={0} is an invalid e-mail address.
 
    Note: Starting in Struts 1.2.0 the default javascript definitions have
-         been consolidated to commons-validator. The default can be overridden
+         been consolidated to commons-validator. The Struts JAR includes them
+         under the same resource names. The default can be overridden
          by supplying a <javascript> element with a CDATA section, just as
          in struts 1.1.
 
