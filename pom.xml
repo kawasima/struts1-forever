@@ -387,6 +387,8 @@
           <systemPropertyVariables>
             <struts.test.parsers>${project.build.directory}/test-parsers</struts.test.parsers>
             <struts.test.libs>${project.build.directory}/test-libs</struts.test.libs>
+            <!-- The JAR whose classes are tested: javax, servlet3 or jakarta. -->
+            <struts.build>javax</struts.build>
           </systemPropertyVariables>
         </configuration>
       </plugin>
@@ -848,6 +850,9 @@
                 <phase>test</phase>
                 <goals><goal>test</goal></goals>
                 <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>servlet3</struts.build>
+                  </systemPropertyVariables>
                   <classesDirectory>${servlet3.classes}</classesDirectory>
                   <reportsDirectory>${project.build.directory}/surefire-reports-servlet3</reportsDirectory>
                   <classpathDependencyExcludes>
@@ -866,6 +871,9 @@
                 <phase>test</phase>
                 <goals><goal>test</goal></goals>
                 <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>servlet3</struts.build>
+                  </systemPropertyVariables>
                   <test>TestServletApiCompatibility</test>
                   <classesDirectory>${servlet3.classes}</classesDirectory>
                   <reportsDirectory>${project.build.directory}/surefire-reports-servlet3-3.0</reportsDirectory>
@@ -885,6 +893,9 @@
                 <phase>test</phase>
                 <goals><goal>test</goal></goals>
                 <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>servlet3</struts.build>
+                  </systemPropertyVariables>
                   <test>TestServletApiCompatibility</test>
                   <classesDirectory>${servlet3.classes}</classesDirectory>
                   <reportsDirectory>${project.build.directory}/surefire-reports-servlet3-3.1</reportsDirectory>
@@ -903,6 +914,9 @@
                 <phase>test</phase>
                 <goals><goal>test</goal></goals>
                 <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>jakarta</struts.build>
+                  </systemPropertyVariables>
                   <classesDirectory>${jakarta.classes}</classesDirectory>
                   <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
                   <reportsDirectory>${project.build.directory}/surefire-reports-jakarta</reportsDirectory>
@@ -923,6 +937,9 @@
                 <phase>test</phase>
                 <goals><goal>test</goal></goals>
                 <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>jakarta</struts.build>
+                  </systemPropertyVariables>
                   <test>TestServletApiCompatibility</test>
                   <classesDirectory>${jakarta.classes}</classesDirectory>
                   <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>
@@ -944,6 +961,9 @@
                 <phase>test</phase>
                 <goals><goal>test</goal></goals>
                 <configuration>
+                  <systemPropertyVariables>
+                    <struts.build>jakarta</struts.build>
+                  </systemPropertyVariables>
                   <test>TestServletApiCompatibility</test>
                   <classesDirectory>${jakarta.classes}</classesDirectory>
                   <testClassesDirectory>${jakarta.test-classes}</testClassesDirectory>

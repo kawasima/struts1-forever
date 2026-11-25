@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import junit.extensions.TestSetup;
 import junit.framework.Test;
@@ -57,10 +58,11 @@ public class Servlet3TomcatIT extends TestCase {
         assertEquals(LifecycleState.STARTED, context.getState());
     }
 
-    public void testWebInfLib_HasServlet3JarAndCommonsFileUpload() {
+    public void testWebInfLib_HasOnlyServlet3StrutsJarAndCommonsFileUpload() {
         File lib = new File(System.getProperty("webapp.dir"), "WEB-INF/lib");
         List<String> jars = Arrays.asList(lib.list());
-        assertTrue(jars.toString(), jars.contains(System.getProperty("struts.jar")));
+        assertEquals(jars.toString(), List.of(System.getProperty("struts.jar")),
+                jars.stream().filter(j -> j.startsWith("struts")).collect(Collectors.toList()));
         assertTrue(jars.toString(), jars.stream().anyMatch(j -> j.startsWith("commons-fileupload-")));
     }
 
@@ -87,7 +89,8 @@ public class Servlet3TomcatIT extends TestCase {
         assertEquals(res.body(), 200, res.statusCode());
         assertEquals("title=hello;file=a.txt:5:hello;param=hello;wrapper=true"
                 + ";wrapperJar=" + System.getProperty("struts.jar")
-                + ";contextPath=/app;dispatcherType=REQUEST;contentLength=true"
+                + ";contextPath=/app;dispatcherType=REQUEST"
+                + ";contentLength=" + form.size()
                 + ";mapping=upload", res.body());
     }
 

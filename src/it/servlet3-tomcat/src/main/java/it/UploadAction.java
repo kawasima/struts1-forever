@@ -37,7 +37,7 @@ public class UploadAction extends Action {
                 .getCodeSource().getLocation().getPath()).getName());
         out.print(";contextPath=" + request.getServletContext().getContextPath());
         out.print(";dispatcherType=" + request.getDispatcherType());
-        out.print(";contentLength=" + (request.getContentLengthLong() == request.getContentLength()));
+        out.print(";contentLength=" + request.getContentLengthLong());
         out.print(";mapping=" + request.getHttpServletMapping().getMatchValue());
         return null;
     }

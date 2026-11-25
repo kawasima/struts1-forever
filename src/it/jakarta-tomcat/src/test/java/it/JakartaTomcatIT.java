@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import junit.extensions.TestSetup;
 import junit.framework.Test;
@@ -66,10 +67,11 @@ public class JakartaTomcatIT extends TestCase {
         assertEquals(LifecycleState.STARTED, context.getState());
     }
 
-    public void testWebInfLib_HasJakartaJarAndCommonsIoButNoCommonsFileUpload() {
+    public void testWebInfLib_HasOnlyJakartaStrutsJarAndCommonsIoButNoCommonsFileUpload() {
         File lib = new File(System.getProperty("webapp.dir"), "WEB-INF/lib");
         List<String> jars = Arrays.asList(lib.list());
-        assertTrue(jars.toString(), jars.contains(System.getProperty("struts.jar")));
+        assertEquals(jars.toString(), List.of(System.getProperty("struts.jar")),
+                jars.stream().filter(j -> j.startsWith("struts")).collect(Collectors.toList()));
         assertTrue(jars.toString(), jars.stream().anyMatch(j -> j.startsWith("commons-io-")));
         assertTrue(jars.toString(), jars.stream().noneMatch(j -> j.startsWith("commons-fileupload")));
     }

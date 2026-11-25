@@ -324,6 +324,7 @@ public class ActionServlet extends HttpServlet {
         // to the developer
         try {
             initInternal();
+            checkLocations();
             initOther();
             initServlet();
 
@@ -1029,6 +1030,50 @@ public class ActionServlet extends HttpServlet {
         }
 
         return validating;
+    }
+
+
+    /**
+     * <p>Log a warning if this class can be loaded from more than one
+     * location, such as two Struts JARs in <code>/WEB-INF/lib</code>.
+     * Which copy of each Struts class is used is then up to the class
+     * loader.</p>
+     */
+    private void checkLocations() {
+        String locations = duplicateLocations(ActionServlet.class.getClassLoader());
+        if (locations != null) {
+            log.warn("Struts classes found in more than one location: " + locations);
+        }
+    }
+
+
+    /**
+     * <p>Return the locations from which <code>loader</code> can load this
+     * class, separated by ", ", or <code>null</code> if there is at most
+     * one.</p>
+     *
+     * @param loader The class loader to search
+     */
+    static String duplicateLocations(ClassLoader loader) {
+        if (loader == null) {
+            return null;
+        }
+        String name = ActionServlet.class.getName().replace('.', '/') + ".class";
+        StringBuffer locations = new StringBuffer();
+        int count = 0;
+        try {
+            Enumeration urls = loader.getResources(name);
+            while (urls.hasMoreElements()) {
+                if (count > 0) {
+                    locations.append(", ");
+                }
+                locations.append(urls.nextElement());
+                count++;
+            }
+        } catch (IOException e) {
+            return null;
+        }
+        return (count > 1) ? locations.toString() : null;
     }
 
 

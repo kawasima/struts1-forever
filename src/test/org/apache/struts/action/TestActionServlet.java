@@ -17,6 +17,13 @@
  */
 package org.apache.struts.action;
 
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
+
 import javax.servlet.ServletException;
 import junit.framework.Test;
 import junit.framework.TestSuite;
@@ -135,4 +142,39 @@ public class TestActionServlet extends TestCase
     */
 
     // [...]
+
+    // ----------------------------------------------------- duplicateLocations
+
+    public void testDuplicateLocations_TestClassPath_ReturnsNull() {
+        assertNull(ActionServlet.duplicateLocations(ActionServlet.class.getClassLoader()));
+    }
+
+    public void testDuplicateLocations_OneLocation_ReturnsNull() throws Exception {
+        assertNull(ActionServlet.duplicateLocations(loader(new String[] {
+            "jar:file:/app/WEB-INF/lib/struts.jar!/"
+        })));
+    }
+
+    public void testDuplicateLocations_TwoLocations_ListsBoth() throws Exception {
+        String locations = ActionServlet.duplicateLocations(loader(new String[] {
+            "jar:file:/app/WEB-INF/lib/struts.jar!/",
+            "jar:file:/app/WEB-INF/lib/struts-servlet3.jar!/"
+        }));
+        String name = "org/apache/struts/action/ActionServlet.class";
+        assertEquals("jar:file:/app/WEB-INF/lib/struts.jar!/" + name
+            + ", jar:file:/app/WEB-INF/lib/struts-servlet3.jar!/" + name, locations);
+    }
+
+    /** A class loader that finds the resource under each of <code>roots</code>. */
+    private static ClassLoader loader(final String[] roots) {
+        return new ClassLoader(null) {
+            protected Enumeration findResources(String name) throws IOException {
+                List urls = new ArrayList();
+                for (int i = 0; i < roots.length; i++) {
+                    urls.add(new URL(roots[i] + name));
+                }
+                return Collections.enumeration(urls);
+            }
+        };
+    }
 }

@@ -34,8 +34,9 @@ import org.apache.struts.action.ActionServlet;
  * the test classpath.
  *
  * <p>Struts is compiled against Servlet 2.2, but runs on newer APIs: the
- * javax JAR on Servlet 2.3 to 4.0, and the jakarta JAR (bytecode-transformed)
- * on Jakarta Servlet 5.0 and later. Newer APIs add interface methods and
+ * default JAR on Servlet 2.3 to 2.5, the servlet3 JAR on Servlet 3.0 to 4.0,
+ * and the jakarta JAR (bytecode-transformed) on Jakarta Servlet 5.0 and
+ * later. Newer APIs add interface methods and
  * remove deprecated ones. Neither shows up when compiling, and both fail only
  * when the affected code path runs (<code>AbstractMethodError</code>,
  * <code>NoSuchMethodError</code>, <code>NoClassDefFoundError</code>). The

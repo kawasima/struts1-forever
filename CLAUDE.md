@@ -47,9 +47,11 @@ Surefire runs every `**/Test*.java` class and fails when it finds no tests. Excl
 
 The sources are written against `javax.servlet` only, and the default JAR is compiled against Servlet 2.2. On JDK 17+ the `jakarta` profile in `pom.xml` is active and, in addition to the normal build, builds two more JARs from the same classes with `src/servlet3/` in place of their Servlet 2.2 counterparts:
 
-- `target/struts-<version>-servlet3.jar` for javax Servlet 3.0 to 4.0. Every unit test runs against it on Servlet 4.0 (surefire execution `servlet3-test`, reports in `target/surefire-reports-servlet3/`), and `TestServletApiCompatibility` against Servlet 3.0 and 3.1 as well (`servlet3-compat-3.0`, `servlet3-compat-3.1`).
+- `target/struts-<version>-servlet3.jar` for javax Servlet 3.0 to 4.0, in place of the default JAR. Every unit test runs against it on Servlet 4.0 (surefire execution `servlet3-test`, reports in `target/surefire-reports-servlet3/`), and `TestServletApiCompatibility` against Servlet 3.0 and 3.1 as well (`servlet3-compat-3.0`, `servlet3-compat-3.1`).
 - `target/struts-<version>-jakarta.jar` (classes transformed by Eclipse Transformer, with commons-fileupload bundled). Every unit test runs against it on Jakarta Servlet 6.0 (`jakarta-test`, reports in `target/surefire-reports-jakarta/`), and `TestServletApiCompatibility` against Servlet 5.0 and 6.1 as well (`jakarta-compat-5.0`, `jakarta-compat-6.1`).
 - `mvn verify` runs `src/it/servlet3-tomcat` and `src/it/jakarta-tomcat` with maven-invoker-plugin, which deploy these JARs to an embedded Tomcat 9.0 and 10.1.
+
+Each surefire execution passes the JAR it tests to the tests as the system property `struts.build` (`javax`, `servlet3` or `jakarta`); tests that expect different behaviour per JAR read it instead of inspecting the class under test.
 
 A change is not done until all of these pass. If a test passes in one build and fails in another, the cause is usually a Servlet/JSP API method that was removed in Servlet 6.0 or added after Servlet 2.2; `TestServletApiCompatibility` lists every class, method and field that does not link. Its checks live in `ServletApiLinkChecker`; a change there needs a fixture test in `TestServletApiLinkChecker` that fails without it.
 
@@ -265,14 +267,14 @@ Releases follow the naming convention `1.2.9-forever-N` (e.g., `1.2.9-forever-1`
 
 The javax release JAR **must be built with JDK 8**. The pom.xml has compiler profiles that select `--release` based on the JDK version:
 
-| Build JDK | Effective setting | Class file major version | Minimum runtime |
+| Build JDK | Effective setting | Class file major version | Minimum JVM for the Struts classes |
 | --- | --- | --- | --- |
 | JDK 8 | `source=1.4 target=1.4` | **48** (Java 1.4) | Java 1.4+ |
 | JDK 9–10 | `--release 6` | 50 (Java 6) | Java 6+ |
 | JDK 11+ | `--release 8` | 52 (Java 8) | Java 8+ |
 
-Building with JDK 11+ produces class files that **cannot run on Java 5, 6, or 7**. Since this library targets legacy environments, always use JDK 8 for release builds to ensure maximum compatibility.
+Building with JDK 11+ produces class files that **cannot run on Java 5, 6, or 7**. Since this library targets legacy environments, always use JDK 8 for release builds to ensure maximum compatibility. The class file version is not the runtime requirement of an application: the dependency versions declared in `pom.xml` (Commons BeanUtils 1.11.0, FileUpload 1.6.0, IO 2.19.0) need Java 8, and Struts needs Commons BeanUtils 1.9.2 or later (`SuppressPropertiesBeanIntrospector`).
 
-The servlet3 and jakarta JARs are built on JDK 17+ (Eclipse Transformer requires it), so their class files are major version 52 (Java 8+). Jakarta EE 9+ containers require Java 8 or later anyway; Servlet 3.0 and 3.1 containers on Java 6 or 7 use the default JAR.
+The servlet3 and jakarta JARs are built on JDK 17+ (Eclipse Transformer requires it), so their class files are major version 52 (Java 8+).
 
 **Note**: JDK 8 cannot compile test code that uses annotations (`@Override` etc.), so release builds must use `-Dmaven.test.skip=true`. Tests should be run separately with JDK 11+ before the release.
