@@ -15,10 +15,21 @@
  */
 package org.apache.struts.taglib.html;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+import java.io.Writer;
+import java.util.Locale;
+
 import javax.servlet.jsp.JspException;
+import javax.servlet.jsp.JspWriter;
 import javax.servlet.jsp.PageContext;
+import javax.servlet.jsp.tagext.BodyContent;
 
 import junit.framework.TestCase;
+
+import org.apache.struts.Globals;
+import org.apache.struts.util.MessageResources;
 
 import org.apache.struts.mock.MockHttpServletRequest;
 import org.apache.struts.mock.MockHttpServletResponse;
@@ -270,6 +281,151 @@ public class TestOptionTag extends TestCase {
         tag.setPageContext(pageContext);
         tag.setValue("A&amp;B");
         assertEquals("A&amp;B", label(tag.renderOptionElement()));
+    }
+
+    // ------------------------------------------------------------------
+    // Labels that are already HTML (issue #5)
+    // ------------------------------------------------------------------
+
+    /**
+     * Message resources hold HTML because {@code <bean:message>} writes them
+     * as given, so a label looked up by key keeps its character references.
+     */
+    public void testLabel_FromKey_KeepsCharacterReferences() throws Exception {
+        pageContext.setAttribute(Globals.MESSAGES_KEY,
+                new FixedMessageResources("&lt;Select One&gt;&nbsp;"),
+                PageContext.REQUEST_SCOPE);
+        stubSelectTag();
+
+        OptionTag tag = new OptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue("");
+        tag.setKey("typeForm.option.select.one");
+        tag.doStartTag();
+        tag.doEndTag();
+
+        assertTrue(out.getContent(),
+                out.getContent().contains(">&lt;Select One&gt;&nbsp;</option>"));
+    }
+
+    /** A message looked up by key still cannot add elements to the page. */
+    public void testLabel_FromKey_EscapesMarkup() throws Exception {
+        pageContext.setAttribute(Globals.MESSAGES_KEY,
+                new FixedMessageResources("</select><script>x()</script>"),
+                PageContext.REQUEST_SCOPE);
+        stubSelectTag();
+
+        OptionTag tag = new OptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue("v");
+        tag.setKey("k");
+
+        assertEquals("</select><script>x()</script>",
+                label(tag.renderOptionElement()));
+    }
+
+    /**
+     * {@code <bean:write>} nested in the body escapes its output, and the
+     * option shows that output as {@code <bean:write>} alone would.
+     */
+    public void testText_FromNestedWriteTag_IsEscapedOnce() throws Exception {
+        pageContext.setAttribute("member", "Tom & Jerry <TJ>",
+                PageContext.PAGE_SCOPE);
+        stubSelectTag();
+
+        OptionTag tag = new OptionTag();
+        tag.setPageContext(pageContext);
+        tag.setValue("1");
+        tag.doStartTag();
+
+        StringBodyContent body = new StringBodyContent(out);
+        tag.setBodyContent(body);
+        pageContext.setJspWriter(body);
+        org.apache.struts.taglib.bean.WriteTag write =
+                new org.apache.struts.taglib.bean.WriteTag();
+        write.setPageContext(pageContext);
+        write.setName("member");
+        write.doStartTag();
+        write.doEndTag();
+        pageContext.setJspWriter(out);
+        tag.doAfterBody();
+        tag.doEndTag();
+
+        String output = out.getContent();
+        assertTrue(output,
+                output.contains(">Tom &amp; Jerry &lt;TJ&gt;</option>"));
+        assertEquals("Tom & Jerry <TJ>", label(output));
+    }
+
+    /** Body text written as a character reference, as in {@code &nbsp;}. */
+    public void testText_BlankOptionWithNbsp_IsKept() throws Exception {
+        String output = runOptionTag("", "&nbsp;");
+        assertTrue(output, output.contains(">&nbsp;</option>"));
+    }
+
+    /** Returns the same message for every key. */
+    private static class FixedMessageResources extends MessageResources {
+        private final String message;
+
+        FixedMessageResources(String message) {
+            super(null, null);
+            this.message = message;
+        }
+
+        public String getMessage(Locale locale, String key) {
+            return message;
+        }
+    }
+
+    /** Body content that keeps what is written to it, as a container does. */
+    private static class StringBodyContent extends BodyContent {
+        private final StringBuffer buffer = new StringBuffer();
+
+        StringBodyContent(JspWriter enclosing) {
+            super(enclosing);
+        }
+
+        public String getString() {
+            return buffer.toString();
+        }
+
+        public Reader getReader() {
+            return new StringReader(getString());
+        }
+
+        public void writeOut(Writer w) throws IOException {
+            w.write(getString());
+        }
+
+        public void write(char[] cbuf, int off, int len) {
+            buffer.append(cbuf, off, len);
+        }
+
+        public void newLine() { buffer.append('\n'); }
+        public void print(boolean b) { buffer.append(b); }
+        public void print(char c) { buffer.append(c); }
+        public void print(int i) { buffer.append(i); }
+        public void print(long l) { buffer.append(l); }
+        public void print(float f) { buffer.append(f); }
+        public void print(double d) { buffer.append(d); }
+        public void print(char[] s) { buffer.append(s); }
+        public void print(String s) { buffer.append(s); }
+        public void print(Object o) { buffer.append(o); }
+        public void println() { newLine(); }
+        public void println(boolean b) { print(b); newLine(); }
+        public void println(char c) { print(c); newLine(); }
+        public void println(int i) { print(i); newLine(); }
+        public void println(long l) { print(l); newLine(); }
+        public void println(float f) { print(f); newLine(); }
+        public void println(double d) { print(d); newLine(); }
+        public void println(char[] s) { print(s); newLine(); }
+        public void println(String s) { print(s); newLine(); }
+        public void println(Object o) { print(o); newLine(); }
+        public void clear() { buffer.setLength(0); }
+        public void clearBuffer() { buffer.setLength(0); }
+        public void flush() { }
+        public void close() { }
+        public int getRemaining() { return 0; }
     }
 
     /** The label of the option element, decoded as the browser reads it. */
