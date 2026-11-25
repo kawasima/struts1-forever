@@ -17,6 +17,7 @@ package org.apache.struts.util;
 
 import org.apache.commons.digester.Digester;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
 import org.xml.sax.XMLReader;
 
 /**
@@ -26,7 +27,7 @@ import org.xml.sax.XMLReader;
  *
  * <p>Every <code>parse()</code> method of <code>Digester</code> obtains its
  * parser from {@link #getXMLReader()}, which applies the policy after the
- * Digester has been configured.</p>
+ * Digester has been configured, and every fatal error stops parsing.</p>
  *
  * @since Struts 1.2.9-forever-4
  */
@@ -55,5 +56,14 @@ public class SecureDigester extends Digester {
         }
         DigesterSecurity.secure(this, reader);
         return reader;
+    }
+
+    /**
+     * Pass a fatal error on as <code>Digester</code> does, then rethrow it, so
+     * that parsing stops even on a parser set to continue after fatal errors.
+     */
+    public void fatalError(SAXParseException exception) throws SAXException {
+        super.fatalError(exception);
+        throw exception;
     }
 }

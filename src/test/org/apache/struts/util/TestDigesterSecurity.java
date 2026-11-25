@@ -276,12 +276,38 @@ public class TestDigesterSecurity extends TestCase {
         assertRejected(digester, billionLaughs(5, "<root>&e5;</root>"));
     }
 
-    public void testLowerExpansionLimit_IsKept() throws Exception {
+    /** The policy never relaxes a limit, including ones it does not set. */
+    public void testStricterLimits_AreKept() throws Exception {
         XMLReader reader = newXmlReader();
         reader.setProperty(JDK_EXPANSION_LIMIT, "100");
+        reader.setProperty(JDK_TOTAL_SIZE_LIMIT, "1000");
         DigesterSecurity.secure(new Digester(reader));
 
         assertEquals("100", reader.getProperty(JDK_EXPANSION_LIMIT));
+        assertEquals("1000", reader.getProperty(JDK_TOTAL_SIZE_LIMIT));
+    }
+
+    /** Control: set to continue after fatal errors, the parser ignores its limit. */
+    public void testContinueAfterFatalError_Unsecured_ParsesPastLimit() throws Exception {
+        Digester digester = new Digester(continuingReader());
+
+        digester.parse(stream(billionLaughs(1, "<root>&e1;</root>")));
+    }
+
+    public void testContinueAfterFatalError_Secured_StopsAtLimit() throws Exception {
+        Digester digester = new Digester(continuingReader());
+        DigesterSecurity.secure(digester);
+
+        assertRejected(digester, billionLaughs(1, "<root>&e1;</root>"));
+    }
+
+    public void testContinueAfterFatalError_SecureDigester_StopsAtLimit() throws Exception {
+        Digester digester = secureDigester(false);
+        XMLReader reader = digester.getXMLReader();
+        reader.setFeature(CONTINUE_AFTER_FATAL_ERROR, true);
+        reader.setProperty(JDK_EXPANSION_LIMIT, "3");
+
+        assertRejected(digester, billionLaughs(1, "<root>&e1;</root>"));
     }
 
     public void testInternalEntity_AtLengthLimit_IsAccepted() throws Exception {
@@ -405,6 +431,20 @@ public class TestDigesterSecurity extends TestCase {
 
     static final String JDK_EXPANSION_LIMIT =
         "http://www.oracle.com/xml/jaxp/properties/entityExpansionLimit";
+
+    private static final String JDK_TOTAL_SIZE_LIMIT =
+        "http://www.oracle.com/xml/jaxp/properties/totalEntitySizeLimit";
+
+    private static final String CONTINUE_AFTER_FATAL_ERROR =
+        "http://apache.org/xml/features/continue-after-fatal-error";
+
+    /** Reader that allows 3 expansions and goes on after a fatal error. */
+    private static XMLReader continuingReader() throws Exception {
+        XMLReader reader = newXmlReader();
+        reader.setFeature(CONTINUE_AFTER_FATAL_ERROR, true);
+        reader.setProperty(JDK_EXPANSION_LIMIT, "3");
+        return reader;
+    }
 
 
     /** 10^levels expansions of e0 through e1..e{levels}, used by the body. */

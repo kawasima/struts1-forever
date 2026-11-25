@@ -22,9 +22,11 @@ import org.apache.commons.digester.Digester;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.xml.sax.EntityResolver;
+import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXNotRecognizedException;
+import org.xml.sax.SAXParseException;
 import org.xml.sax.XMLReader;
 import org.xml.sax.ext.DeclHandler;
 
@@ -56,10 +58,15 @@ import org.xml.sax.ext.DeclHandler;
  *     Together these bound the expanded text of a document, on parsers that
  *     limit only the number of expansions (Apache Xerces) as well.</li>
  * <li>XInclude is not processed by parsers that let it be turned off.</li>
+ * <li>A fatal error stops parsing, also on a parser set to continue after
+ *     fatal errors, so a limit the parser enforces is not reported and then
+ *     ignored.</li>
  * </ul>
- * <p>If the XML parser cannot be made to meet these conditions, parsing fails
- * with a <code>SAXException</code> instead of going ahead without them. The
- * JDK parser and Apache Xerces 2.x meet them.</p>
+ * <p>Applying the policy never relaxes a restriction the parser already has:
+ * a stricter limit is kept, and limits Struts does not set are left as they
+ * are. If the XML parser cannot be made to meet these conditions, parsing
+ * fails with a <code>SAXException</code> instead of going ahead without them.
+ * The JDK parser and Apache Xerces 2.x meet them.</p>
  *
  * <p>Struts creates its own <code>Digester</code> instances as
  * {@link SecureDigester}, which applies this policy whenever it parses. Use
@@ -84,9 +91,6 @@ public final class DigesterSecurity {
 
     private static final String FEATURE_EXTERNAL_PARAMETER_ENTITIES =
         "http://xml.org/sax/features/external-parameter-entities";
-
-    private static final String FEATURE_SECURE_PROCESSING =
-        "http://javax.xml.XMLConstants/feature/secure-processing";
 
     /** Entity expansion limit of the JDK parser. */
     private static final String PROPERTY_JDK_ENTITY_EXPANSION_LIMIT =
@@ -138,6 +142,11 @@ public final class DigesterSecurity {
             || ((RegisteredEntityResolver) current).digester != digester) {
             digester.setEntityResolver(
                 new RegisteredEntityResolver(digester, current));
+        }
+        // Digester.fatalError() only passes the error on to this handler.
+        ErrorHandler errorHandler = digester.getErrorHandler();
+        if (!(errorHandler instanceof FatalErrorGuard)) {
+            digester.setErrorHandler(new FatalErrorGuard(errorHandler));
         }
 
         XMLReader reader;
@@ -193,19 +202,13 @@ public final class DigesterSecurity {
     /**
      * Make the parser count entity expansions with a limit between 1 and
      * {@link #MAX_ENTITY_EXPANSIONS}, and read the limit back. Secure
-     * processing does not establish this by itself: an explicit limit of 0,
-     * for example from the <code>jdk.xml.entityExpansionLimit</code> system
-     * property, keeps expansion unlimited with secure processing on.
+     * processing is not used: it does not establish this (an explicit limit
+     * of 0, for example from the <code>jdk.xml.entityExpansionLimit</code>
+     * system property, stays in effect with it), and on Apache Xerces it
+     * replaces the security manager and with it any stricter limits.
      */
     private static void requireEntityExpansionLimit(XMLReader reader)
             throws SAXException {
-        // Also turns on the other limits of the JDK parser.
-        try {
-            reader.setFeature(FEATURE_SECURE_PROCESSING, true);
-        } catch (SAXException e) {
-            // Not supported (Xerces before 2.7).
-        }
-
         if (limitJdkExpansions(reader) || limitXercesExpansions(reader)) {
             return;
         }
@@ -231,43 +234,116 @@ public final class DigesterSecurity {
     }
 
     /**
-     * Apache Xerces keeps the limit in a SecurityManager. A manager that
-     * allows too many expansions is replaced, not changed, because the
-     * application may share it with other parsers.
+     * Apache Xerces keeps its limits in a SecurityManager. A manager whose
+     * expansion limit is usable is kept. Otherwise it is replaced, not
+     * changed, because the application may share it with other parsers; the
+     * replacement copies every limit of the old manager and lowers only the
+     * expansion limit.
      */
     private static boolean limitXercesExpansions(XMLReader reader) throws SAXException {
-        Object manager;
+        Object current;
         try {
-            manager = reader.getProperty(PROPERTY_XERCES_SECURITY_MANAGER);
+            current = reader.getProperty(PROPERTY_XERCES_SECURITY_MANAGER);
         } catch (SAXException e) {
             return false;
         }
-        if (manager == null || !isEffective(xercesLimit(manager))) {
-            manager = newXercesSecurityManager(reader);
-            if (manager == null) {
-                return false;
-            }
-            reader.setProperty(PROPERTY_XERCES_SECURITY_MANAGER, manager);
+        if (current != null && isEffective(xercesLimit(current))) {
+            return true;
         }
-        int limit = xercesLimit(reader.getProperty(PROPERTY_XERCES_SECURITY_MANAGER));
+
+        Object replacement = newXercesSecurityManager(reader, current);
+        if (replacement == null) {
+            return false;
+        }
+        reader.setProperty(PROPERTY_XERCES_SECURITY_MANAGER, replacement);
+
+        Object installed = reader.getProperty(PROPERTY_XERCES_SECURITY_MANAGER);
+        int limit = xercesLimit(installed);
         if (!isEffective(limit)) {
             throw unsafeParser(reader, "keeps its entity expansion limit at " + limit, null);
+        }
+        if (current != null && !sameLimitsExceptExpansion(current, installed)) {
+            throw unsafeParser(reader, "did not keep the other limits of its"
+                + " security manager", null);
         }
         return true;
     }
 
-    private static Object newXercesSecurityManager(XMLReader reader) {
+    /**
+     * @param previous the manager to copy limits from, or null
+     * @return a new manager, or null if the reader is not Apache Xerces
+     */
+    private static Object newXercesSecurityManager(XMLReader reader, Object previous) {
         try {
-            Class managerClass = Class.forName(XERCES_SECURITY_MANAGER_CLASS,
-                true, reader.getClass().getClassLoader());
+            Class managerClass = previous != null ? previous.getClass()
+                : Class.forName(XERCES_SECURITY_MANAGER_CLASS, true,
+                    reader.getClass().getClassLoader());
             Object manager = managerClass.newInstance();
-            managerClass.getMethod("setEntityExpansionLimit", new Class[] {int.class})
+            if (previous != null) {
+                Method[] getters = intLimitGetters(managerClass);
+                for (int i = 0; i < getters.length; i++) {
+                    setter(managerClass, getters[i]).invoke(manager,
+                        new Object[] {getters[i].invoke(previous, new Object[0])});
+                }
+            }
+            managerClass.getMethod(SET_EXPANSION_LIMIT, new Class[] {int.class})
                 .invoke(manager, new Object[] {new Integer(MAX_ENTITY_EXPANSIONS)});
             return manager;
         } catch (Exception e) {
             return null;
         }
     }
+
+    private static boolean sameLimitsExceptExpansion(Object previous, Object installed) {
+        if (previous.getClass() != installed.getClass()) {
+            return false;
+        }
+        try {
+            Method[] getters = intLimitGetters(previous.getClass());
+            for (int i = 0; i < getters.length; i++) {
+                if (getters[i].getName().equals(GET_EXPANSION_LIMIT)) {
+                    continue;
+                }
+                Object before = getters[i].invoke(previous, new Object[0]);
+                Object after = getters[i].invoke(installed, new Object[0]);
+                if (!before.equals(after)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Public int getters that have a matching int setter: the limits. */
+    private static Method[] intLimitGetters(Class managerClass) {
+        Method[] methods = managerClass.getMethods();
+        java.util.List getters = new java.util.ArrayList();
+        for (int i = 0; i < methods.length; i++) {
+            Method method = methods[i];
+            if (method.getName().startsWith("get")
+                && method.getParameterTypes().length == 0
+                && method.getReturnType() == int.class
+                && setter(managerClass, method) != null) {
+                getters.add(method);
+            }
+        }
+        return (Method[]) getters.toArray(new Method[getters.size()]);
+    }
+
+    private static Method setter(Class managerClass, Method getter) {
+        try {
+            return managerClass.getMethod("set" + getter.getName().substring(3),
+                new Class[] {int.class});
+        } catch (NoSuchMethodException e) {
+            return null;
+        }
+    }
+
+    private static final String GET_EXPANSION_LIMIT = "getEntityExpansionLimit";
+
+    private static final String SET_EXPANSION_LIMIT = "setEntityExpansionLimit";
 
     /** @return the limit of a Xerces SecurityManager, or 0 if unknown */
     private static int xercesLimit(Object manager) {
@@ -276,7 +352,7 @@ public final class DigesterSecurity {
         }
         try {
             Method getter = manager.getClass().getMethod(
-                "getEntityExpansionLimit", new Class[0]);
+                GET_EXPANSION_LIMIT, new Class[0]);
             return ((Integer) getter.invoke(manager, new Object[0])).intValue();
         } catch (Exception e) {
             return 0;
@@ -358,6 +434,39 @@ public final class DigesterSecurity {
         String message = "XML parser " + reader.getClass().getName() + " " + problem
             + ", so Struts does not use it to parse.";
         return cause == null ? new SAXException(message) : new SAXException(message, cause);
+    }
+
+    /**
+     * Rethrows every fatal error after passing it on, so that parsing stops
+     * whether or not the parser is set to continue after fatal errors.
+     */
+    static final class FatalErrorGuard implements ErrorHandler {
+
+        /** Error handler set on the Digester before, or null. */
+        private final ErrorHandler next;
+
+        FatalErrorGuard(ErrorHandler next) {
+            this.next = next;
+        }
+
+        public void warning(SAXParseException exception) throws SAXException {
+            if (next != null) {
+                next.warning(exception);
+            }
+        }
+
+        public void error(SAXParseException exception) throws SAXException {
+            if (next != null) {
+                next.error(exception);
+            }
+        }
+
+        public void fatalError(SAXParseException exception) throws SAXException {
+            if (next != null) {
+                next.fatalError(exception);
+            }
+            throw exception;
+        }
     }
 
     /**
