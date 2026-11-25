@@ -22,13 +22,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build Commands
 
 ```bash
-# Full build and test
-mvn package
+# Full build, unit tests and the Tomcat 10.1 integration test (JDK 17+)
+mvn verify
 
 # Compile only
 mvn compile
 
-# Run all tests
+# Run all unit tests (on JDK 17+: against both the javax and the jakarta build)
 mvn test
 
 # Run a single test class
@@ -42,6 +42,18 @@ mvn test-compile
 ```
 
 Note: Surefire is configured with explicit `<includes>` in pom.xml. If you add a new test class, add it to that list or it won't run.
+
+### javax and jakarta builds
+
+The sources are written against `javax.servlet` only. On JDK 17+ the `jakarta` profile in `pom.xml` is active and, in addition to the normal build:
+
+- runs every unit test a second time against the jakarta build (surefire execution `jakarta-test`, reports in `target/surefire-reports-jakarta/`),
+- packages `target/struts-<version>-jakarta.jar` (classes transformed by Eclipse Transformer, with commons-fileupload bundled),
+- runs `src/it/jakarta-tomcat` with maven-invoker-plugin in `mvn verify`, which deploys that JAR to an embedded Tomcat 10.1.
+
+A change is not done until both test runs pass. If a test passes under javax and fails under jakarta, the cause is usually a Servlet/JSP API method that was removed in Servlet 6.0 or added after Servlet 2.2; `TestServletApiLinkage` lists every unresolved reference.
+
+On JDK 8–16 the profile is inactive and only the javax build runs.
 
 ## Running Example Applications
 
@@ -83,7 +95,9 @@ When running under Tomcat 9 (Servlet 5.0), Tomcat honours the `web.xml` `<taglib
 ## Source Layout
 
 - **`src/share/`** — Main production sources (Maven `sourceDirectory`)
-- **`src/test/`** — Test sources (Maven `testSourceDirectory`)
+- **`src/test/`** — Test sources (Maven `testSourceDirectory`); run against both builds
+- **`src/jakarta/`** — Classes that replace their transformed javax counterpart in the jakarta JAR only. Keep this to classes that cannot work after transformation (currently `MultipartRequestWrapper`), keep their public/protected API identical to the javax class, and cover the shared behaviour with tests in `src/test/`
+- **`src/it/jakarta-tomcat/`** — Integration test webapp for the jakarta JAR (Java 11+, Tomcat 10.1)
 - **`conf/share/`** — DTDs and `validator-rules.xml`; copied to `target/classes/org/apache/struts/resources/` at compile time
 - **`doc/userGuide/`** — XML source for tag library documentation; XSLT-transformed into TLD files at `generate-resources` phase
 
@@ -192,6 +206,8 @@ Production code (`src/share/`) is compiled with `source=1.4` / `target=1.4` (ove
 
 Violations compile silently on JDK 11+ (where `release=8` applies) but would fail on a strict JDK 1.4 build environment.
 
+`src/jakarta/` and `src/it/` are exempt: they only exist for Jakarta EE, which requires Java 8 (`src/jakarta/`, compiled against Jakarta Servlet 5.0) or Java 11 (`src/it/`, Tomcat 10.1).
+
 Test naming conventions:
 
 - Test method names describe the **required behaviour** of the system, not the test's pass/fail status.
@@ -209,7 +225,7 @@ Security vulnerabilities are tracked as GitHub Security Advisories in this repos
 
 1. **Pick one advisory** from GitHub Security Advisories. Work on exactly one at a time.
 2. **Write a failing test first** that reproduces the vulnerability. The test must fail before the fix is applied — this proves the vulnerability is real and the test is meaningful. Add the new test class to Surefire `<includes>` in `pom.xml` if it is a new file.
-3. **Fix the vulnerability** in production code. Run `mvn test` to confirm the previously-failing test now passes and no existing tests regress.
+3. **Fix the vulnerability** in production code. Run `mvn verify` on JDK 17+ to confirm the previously-failing test now passes and no existing tests regress in either the javax or the jakarta build.
 4. **Commit in one unit**: stage only the test file(s) + the fixed source file(s) together. Write the commit message in the form:
 
    ```text
@@ -225,20 +241,28 @@ Releases follow the naming convention `1.2.9-forever-N` (e.g., `1.2.9-forever-1`
 ### Steps
 
 1. **Update `pom.xml` version** from `1.2.10-SNAPSHOT` to `1.2.9-forever-N` and commit.
-2. **Build the JAR with JDK 8** (`-Dmaven.test.skip=true` to skip test compilation):
+2. **Build and test the jakarta JAR with JDK 17+**, and move it out of `target/` because the next step cleans it:
+
+   ```bash
+   mvn clean verify
+   mkdir -p dist && cp target/struts-1.2.9-forever-N-jakarta.jar dist/
+   ```
+
+3. **Build the javax JAR with JDK 8** (`-Dmaven.test.skip=true` to skip test compilation):
 
    ```bash
    JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-8.jdk/Contents/Home \
      mvn clean package -Dmaven.test.skip=true
+   cp target/struts-1.2.9-forever-N.jar dist/
    ```
 
-3. **Tag and push**: `git tag 1.2.9-forever-N && git push origin STRUTS_1_2_BRANCH --tags`
-4. **Create GitHub Release** with `gh release create`, attaching `target/struts-1.2.9-forever-N.jar` as an asset.
-5. **Revert `pom.xml`** to `1.2.10-SNAPSHOT` and commit ("Prepare next development iteration").
+4. **Tag and push**: `git tag 1.2.9-forever-N && git push origin STRUTS_1_2_BRANCH --tags`
+5. **Create GitHub Release** with `gh release create`, attaching both JARs in `dist/`. The release notes must tell users of the jakarta JAR to remove `commons-fileupload-1.x.jar` from `WEB-INF/lib` (it is bundled) and to keep `commons-io`.
+6. **Revert `pom.xml`** to `1.2.10-SNAPSHOT` and commit ("Prepare next development iteration").
 
 ### Build JDK Requirement
 
-The release JAR **must be built with JDK 8**. The pom.xml has compiler profiles that select `--release` based on the JDK version:
+The javax release JAR **must be built with JDK 8**. The pom.xml has compiler profiles that select `--release` based on the JDK version:
 
 | Build JDK | Effective setting | Class file major version | Minimum runtime |
 | --- | --- | --- | --- |
@@ -247,5 +271,7 @@ The release JAR **must be built with JDK 8**. The pom.xml has compiler profiles 
 | JDK 11+ | `--release 8` | 52 (Java 8) | Java 8+ |
 
 Building with JDK 11+ produces class files that **cannot run on Java 5, 6, or 7**. Since this library targets legacy environments, always use JDK 8 for release builds to ensure maximum compatibility.
+
+The jakarta JAR is built on JDK 17+ (Eclipse Transformer requires it), so its class files are major version 52 (Java 8+). Jakarta EE 9+ containers require Java 8 or later anyway.
 
 **Note**: JDK 8 cannot compile test code that uses annotations (`@Override` etc.), so release builds must use `-Dmaven.test.skip=true`. Tests should be run separately with JDK 11+ before the release.

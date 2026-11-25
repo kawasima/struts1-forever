@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  No DOCTYPE: since GHSA-h36r-7whm-p5hf, ActionServlet parses with
+  disallow-doctype-decl=true and rejects any DOCTYPE, including the standard
+  Struts DTD declaration. Validation is turned off in web.xml for the same
+  reason.
+-->
+<struts-config>
+  <form-beans>
+    <form-bean name="echoForm" type="org.apache.struts.action.DynaActionForm">
+      <form-property name="name" type="java.lang.String"/>
+    </form-bean>
+    <form-bean name="uploadForm" type="org.apache.struts.action.DynaActionForm">
+      <form-property name="title" type="java.lang.String"/>
+      <form-property name="file" type="org.apache.struts.upload.FormFile"/>
+    </form-bean>
+  </form-beans>
+  <action-mappings>
+    <action path="/echo" type="it.EchoAction" name="echoForm"
+            scope="request" validate="false">
+      <forward name="success" path="/echo.jsp"/>
+    </action>
+    <action path="/included" type="org.apache.struts.actions.IncludeAction"
+            parameter="/included.jsp"/>
+    <action path="/upload" type="it.UploadAction" name="uploadForm"
+            scope="request" validate="false"/>
+  </action-mappings>
+  <message-resources parameter="it.Messages"/>
+</struts-config>
